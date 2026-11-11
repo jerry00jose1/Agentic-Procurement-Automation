@@ -1,0 +1,67 @@
+TableName,ColumnName,DataType,KeyType,Description
+DimSupplier,SupplierCode,str,Primary Key,Supplier (DimSupplier).
+DimSupplier,SupplierName,str,Attribute,Supplier name.
+DimSupplier,Category,str,Attribute,What the supplier or item is.
+DimSupplier,Country,str,Attribute,Supplier country.
+DimSupplier,PaymentTermsDays,int64,Attribute,Days from invoice date to due date.
+DimSupplier,PaymentTerms,str,Attribute,Terms in words.
+DimSupplier,EarlyPaymentDiscountPct,float64,Attribute,Discount % if paid within DiscountDays (0 = none).
+DimSupplier,DiscountDays,int64,Attribute,Days within which the discount applies.
+DimSupplier,IBAN,str,Attribute,Approved supplier bank account.
+DimItem,ItemCode,str,Primary Key,Item (DimItem).
+DimItem,ItemName,str,Attribute,Item name.
+DimItem,Category,str,Attribute,What the supplier or item is.
+DimItem,UnitOfMeasure,str,Attribute,What one unit is.
+DimItem,AccountCode,int64,Attribute,Ledger account the item is charged to.
+DimItem,AccountName,str,Attribute,Name of the account.
+DimItem,SpendType,str,Attribute,"Direct material, Indirect, Capex or Contract - no PO required."
+DimItem,PORequired,str,Attribute,Y = must be bought on a purchase order.
+DimDate,DateKey,int64,Primary Key,"Date as yyyymmdd - relate to DimDate (PODate on FactPOLine, InvoiceDate on FactInvoiceLine)."
+DimDate,Date,datetime64[us],Attribute,Calendar date.
+DimDate,Year,int32,Attribute,Year.
+DimDate,Quarter,str,Attribute,Quarter.
+DimDate,MonthNumber,int32,Attribute,Month 1-12.
+DimDate,MonthName,str,Attribute,Month name.
+DimDate,PeriodKey,int64,Attribute,Month as yyyymm.
+DimDate,DayOfMonth,int32,Attribute,Day of month.
+DimDate,DayName,str,Attribute,Day name.
+DimDate,IsWeekend,str,Attribute,Y on Saturday and Sunday.
+DimDate,IsMonthEnd,str,Attribute,Y on the last day of the month.
+DimDate,IsRamadan,str,Attribute,Y on the days of Ramadan.
+FactPOLine,POLineID,int64,Primary Key,"PO line key; on an invoice line, the PO line it was matched to (blank = no PO)."
+FactPOLine,PONumber,str,Attribute,Purchase order number.
+FactPOLine,POLineNo,int64,Attribute,Line number on the PO.
+FactPOLine,RequisitionDate,datetime64[us],Attribute,Date the cost centre asked for it.
+FactPOLine,PODate,datetime64[us],Attribute,Date the PO was issued.
+FactPOLine,DateKey,int64,Foreign Key,"Date as yyyymmdd - relate to DimDate (PODate on FactPOLine, InvoiceDate on FactInvoiceLine)."
+FactPOLine,NeedByDate,datetime64[us],Attribute,Date the goods were needed.
+FactPOLine,SupplierCode,str,Foreign Key,Supplier (DimSupplier).
+FactPOLine,ItemCode,str,Foreign Key,Item (DimItem).
+FactPOLine,CostCentreCode,str,Attribute,Production line or department charged.
+FactPOLine,OrderedQty,float64,Attribute,Quantity ordered.
+FactPOLine,POUnitPrice,float64,Attribute,"Agreed price per unit, USD."
+FactPOLine,POLineAmount,float64,Attribute,OrderedQty x POUnitPrice.
+FactPOLine,BuyerName,str,Attribute,Buyer who raised the PO.
+FactPOLine,ApprovedByName,str,Attribute,Who approved the PO.
+FactPOLine,POStatus,str,Attribute,"Closed (delivered and invoiced), Cancelled or Open."
+FactPOLine,CancelledDate,datetime64[us],Attribute,Date a cancelled PO was cancelled.
+FactPOLine,ReceivedQty,float64,Attribute,Quantity received (all deliveries).
+FactPOLine,RejectedQty,float64,Attribute,Quantity rejected at receipt.
+FactPOLine,FirstReceiptDate,datetime64[us],Attribute,First delivery.
+FactPOLine,LastReceiptDate,datetime64[us],Attribute,Last delivery.
+FactInvoiceLine,InvoiceLineID,int64,Primary Key,Row key.
+FactInvoiceLine,InvoiceNo,str,Attribute,Supplier's invoice number.
+FactInvoiceLine,LedgerJournalID,str,Attribute,The purchase-invoice journal in the ledger (DD-GLT-003).
+FactInvoiceLine,InvoiceDate,datetime64[us],Attribute,Date on the supplier's invoice.
+FactInvoiceLine,DateKey,int64,Foreign Key,"Date as yyyymmdd - relate to DimDate (PODate on FactPOLine, InvoiceDate on FactInvoiceLine)."
+FactInvoiceLine,PostingDate,datetime64[us],Attribute,Date posted to the ledger.
+FactInvoiceLine,DueDate,datetime64[ns],Attribute,Date payment is due.
+FactInvoiceLine,SupplierCode,str,Foreign Key,Supplier (DimSupplier).
+FactInvoiceLine,ItemCode,str,Foreign Key,Item (DimItem).
+FactInvoiceLine,CostCentreCode,str,Attribute,Production line or department charged.
+FactInvoiceLine,POLineID,Int64,Foreign Key,"PO line key; on an invoice line, the PO line it was matched to (blank = no PO)."
+FactInvoiceLine,InvoiceQty,float64,Attribute,Quantity invoiced.
+FactInvoiceLine,InvoiceUnitPrice,float64,Attribute,LineAmount / InvoiceQty.
+FactInvoiceLine,LineAmount,float64,Attribute,"USD, excluding VAT."
+FactInvoiceLine,PaidDate,datetime64[us],Attribute,Date paid (blank = unpaid).
+FactInvoiceLine,PaidToIBAN,str,Attribute,Bank account the payment was sent to.

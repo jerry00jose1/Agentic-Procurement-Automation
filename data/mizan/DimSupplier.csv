@@ -1,0 +1,65 @@
+SupplierCode,SupplierName,Category,Country,PaymentTermsDays,PaymentTerms,EarlyPaymentDiscountPct,DiscountDays,IBAN
+SUP0065,Jebel Services LLC 065,Resins and polymers,United Arab Emirates,30,"2% if paid within 10 days, otherwise net 30",2,10,AE938095989202700268073
+SUP0066,Barakah Logistics LLC 066,Resins and polymers,United Arab Emirates,60,Net 60,0,0,AE732851405433900582238
+SUP0067,Marina Supplies LLC 067,Resins and polymers,United Arab Emirates,60,Net 60,0,0,AE613876533181027193862
+SUP0068,Delta Distribution LLC 068,Surfactants,United Arab Emirates,30,Net 30,0,0,AE548479447475890410015
+SUP0069,Oasis Foods LLC 069,Surfactants,China,45,Net 45,0,0,CN386541308670148348934
+SUP0070,Falcon Enterprises LLC 070,Surfactants,United Arab Emirates,30,Net 30,0,0,AE986011471236537398900
+SUP0071,Arabian Services LLC 071,Pulp and paper,United Arab Emirates,30,"2% if paid within 10 days, otherwise net 30",2,10,AE637305012053581616067
+SUP0072,Zayed Trading LLC 072,Pulp and paper,United Arab Emirates,60,Net 60,0,0,AE194994634105437565057
+SUP0073,Arabian Industries LLC 073,Pulp and paper,United Arab Emirates,60,Net 60,0,0,AE353436797840332132033
+SUP0074,Barakah Enterprises LLC 074,Steel and aluminium,United Arab Emirates,30,Net 30,0,0,AE746988562265265886693
+SUP0075,Jebel Services LLC 075,Steel and aluminium,United Arab Emirates,30,Net 30,0,0,AE265227415419769136362
+SUP0076,Falcon Trading LLC 076,Steel and aluminium,India,60,Net 60,0,0,IN689259797442122783055
+SUP0077,Jebel Foods LLC 077,Packaging materials,United Arab Emirates,30,"2% if paid within 10 days, otherwise net 30",2,10,AE282147191931405317779
+SUP0078,Barakah Enterprises LLC 078,Packaging materials,United Arab Emirates,45,Net 45,0,0,AE798168413661934940064
+SUP0079,Oasis Foods LLC 079,Packaging materials,China,30,Net 30,0,0,CN723764563758520534416
+SUP0080,Barakah Supplies LLC 080,Fragrances,Egypt,60,Net 60,0,0,EG944007566247065823254
+SUP0081,Delta Trading LLC 081,Fragrances,United Arab Emirates,30,Net 30,0,0,AE787794236506738481806
+SUP0082,Pearl Enterprises LLC 082,Fragrances,India,45,Net 45,0,0,IN219045672797704954339
+SUP0083,Palm Packaging LLC 083,Chemicals,United Arab Emirates,45,Net 45,0,0,AE573008649734179581046
+SUP0084,Horizon Services LLC 084,Chemicals,India,45,Net 45,0,0,IN894215713377082348395
+SUP0085,Zayed Foods LLC 085,Chemicals,United Arab Emirates,45,Net 45,0,0,AE775181593488940375386
+SUP0086,Sahara Supplies LLC 086,Cartons,United Arab Emirates,60,Net 60,0,0,AE236807968504005101729
+SUP0087,Jebel Trading LLC 087,Cartons,Turkey,30,Net 30,0,0,TR294856568038529238343
+SUP0088,Marina Industries LLC 088,Cartons,Saudi Arabia,30,Net 30,0,0,SA754875280567057897295
+SUP0089,Arabian Enterprises LLC 089,Landlord,Turkey,30,Net 30,0,0,TR157404425139968583046
+SUP0091,Arabian Enterprises LLC 091,Landlord,China,45,Net 45,0,0,CN952463963703355721111
+SUP0093,Sahara Logistics LLC 093,Landlord,United Arab Emirates,45,Net 45,0,0,AE324024607278063263448
+SUP0094,Emirates Industries LLC 094,Landlord,India,60,Net 60,0,0,IN295239453085849900386
+SUP0097,Pearl Packaging LLC 097,Utilities,United Arab Emirates,60,Net 60,0,0,AE963914887610497866947
+SUP0100,Arabian Supplies LLC 100,Services,United Arab Emirates,45,Net 45,0,0,AE683648688663822717466
+SUP0101,Marina Logistics LLC 101,Services,Turkey,45,Net 45,0,0,TR656027454962222109131
+SUP0102,Sahara Supplies LLC 102,Services,United Arab Emirates,30,Net 30,0,0,AE946844334712083317521
+SUP0103,Falcon Supplies LLC 103,Services,United Arab Emirates,45,Net 45,0,0,AE611145879207379912276
+SUP0104,Delta Packaging LLC 104,Services,United Arab Emirates,30,Net 30,0,0,AE975059892357791796006
+SUP0105,Al Noor Packaging LLC 105,Services,United Arab Emirates,30,Net 30,0,0,AE642538005598483294452
+SUP0106,Atlas Enterprises LLC 106,Services,Saudi Arabia,45,Net 45,0,0,SA566366623074823100506
+SUP0107,Oasis Industries LLC 107,Services,United Arab Emirates,30,Net 30,0,0,AE426295446284342493498
+SUP0108,Horizon Logistics LLC 108,Services,United Arab Emirates,45,Net 45,0,0,AE812211500944461104264
+SUP0109,Crescent Distribution LLC 109,Services,United Arab Emirates,30,Net 30,0,0,AE516963875128454828132
+SUP0110,Atlas Trading LLC 110,Services,India,60,Net 60,0,0,IN298705999368951747286
+SUP0111,Emirates Supplies LLC 111,Services,United Arab Emirates,30,Net 30,0,0,AE657941022519661043326
+SUP0112,Crescent Services LLC 112,Services,United Arab Emirates,30,Net 30,0,0,AE449455094011591423088
+SUP0113,Emirates Services LLC 113,Services,United Arab Emirates,45,Net 45,0,0,AE631568709360008496051
+SUP0114,Marina Supplies LLC 114,Services,India,30,Net 30,0,0,IN289278802555029866818
+SUP0115,Sahara General Trading LLC 115,Services,United Arab Emirates,45,Net 45,0,0,AE751015799279316144568
+SUP0116,Atlas Packaging LLC 116,Services,United Arab Emirates,45,Net 45,0,0,AE334007023127440444895
+SUP0117,Jebel Enterprises LLC 117,Services,China,30,Net 30,0,0,CN725183625479668823650
+SUP0118,Crescent Distribution LLC 118,Services,Saudi Arabia,30,Net 30,0,0,SA316476211977375459282
+SUP0119,Pearl Enterprises LLC 119,Services,United Arab Emirates,30,Net 30,0,0,AE959054094773438713150
+SUP0120,Jebel Enterprises LLC 120,Services,United Arab Emirates,45,Net 45,0,0,AE742241588655328120539
+SUP0121,Horizon Enterprises LLC 121,Services,United Arab Emirates,30,Net 30,0,0,AE956878310316094021893
+SUP0122,Palm Packaging LLC 122,Services,United Arab Emirates,60,Net 60,0,0,AE576905036830824617084
+SUP0123,Oasis Enterprises LLC 123,Services,Saudi Arabia,30,Net 30,0,0,SA276328103821143663348
+SUP0124,Horizon Industries LLC 124,Services,Turkey,30,Net 30,0,0,TR982779811927925042455
+SUP0125,Hatta General Trading LLC 125,Services,India,30,Net 30,0,0,IN381632300499061317440
+SUP0126,Pearl Foods LLC 126,Services,China,45,Net 45,0,0,CN665819373076180419804
+SUP0127,Pearl Distribution LLC 127,Services,China,60,Net 60,0,0,CN869319182432577206747
+SUP0128,Pearl Logistics LLC 128,Services,United Arab Emirates,60,Net 60,0,0,AE762982518564777999170
+SUP0129,Horizon Supplies LLC 129,Services,United Arab Emirates,30,Net 30,0,0,AE822976730713572460284
+SUP0134,Marina Trading LLC 134,Plant and equipment,Turkey,30,Net 30,0,0,TR664804090642020451471
+SUP0135,Liwa Packaging LLC 135,Plant and equipment,United Arab Emirates,30,Net 30,0,0,AE405864368741332035769
+SUP0136,Noon Enterprises LLC 136,Plant and equipment,Egypt,30,Net 30,0,0,EG571448910317765063289
+SUP0137,Emirates Distribution LLC 137,Plant and equipment,Saudi Arabia,45,Net 45,0,0,SA456406589791158994866
+SUP0157,Jebel Supplies LLC 157,Insurance,United Arab Emirates,45,Net 45,0,0,AE199434294843894442642

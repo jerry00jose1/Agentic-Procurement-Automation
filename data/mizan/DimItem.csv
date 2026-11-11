@@ -1,0 +1,52 @@
+ItemCode,ItemName,Category,UnitOfMeasure,AccountCode,AccountName,SpendType,PORequired
+M01-01,HDPE pellets,Resins and polymers,kg,50200,Raw materials consumed - resins and polymers,Direct material,Y
+M01-02,PP pellets,Resins and polymers,kg,50200,Raw materials consumed - resins and polymers,Direct material,Y
+M01-03,PET flakes,Resins and polymers,kg,50200,Raw materials consumed - resins and polymers,Direct material,Y
+M02-01,SLES 70%,Surfactants,kg,50201,Raw materials consumed - surfactants,Direct material,Y
+M02-02,LABSA,Surfactants,kg,50201,Raw materials consumed - surfactants,Direct material,Y
+M02-03,Cocamidopropyl betaine,Surfactants,kg,50201,Raw materials consumed - surfactants,Direct material,Y
+M03-01,Virgin pulp,Pulp and paper,kg,50202,Raw materials consumed - pulp and paper,Direct material,Y
+M03-02,Recycled pulp,Pulp and paper,kg,50202,Raw materials consumed - pulp and paper,Direct material,Y
+M03-03,Tissue parent roll,Pulp and paper,kg,50202,Raw materials consumed - pulp and paper,Direct material,Y
+M04-01,Aluminium sheet,Steel and aluminium,kg,50203,Raw materials consumed - steel and aluminium,Direct material,Y
+M04-02,Stainless steel coil,Steel and aluminium,kg,50203,Raw materials consumed - steel and aluminium,Direct material,Y
+M04-03,Tin plate,Steel and aluminium,kg,50203,Raw materials consumed - steel and aluminium,Direct material,Y
+M05-01,Shrink film,Packaging materials,kg,50204,Raw materials consumed - packaging materials,Direct material,Y
+M05-02,Labels,Packaging materials,1000 pcs,50204,Raw materials consumed - packaging materials,Direct material,Y
+M05-03,Caps and closures,Packaging materials,1000 pcs,50204,Raw materials consumed - packaging materials,Direct material,Y
+M06-01,Floral fragrance,Fragrances,kg,50205,Raw materials consumed - fragrances,Direct material,Y
+M06-02,Citrus fragrance,Fragrances,kg,50205,Raw materials consumed - fragrances,Direct material,Y
+M06-03,Fresh linen fragrance,Fragrances,kg,50205,Raw materials consumed - fragrances,Direct material,Y
+M07-01,Caustic soda,Chemicals,kg,50206,Raw materials consumed - chemicals,Direct material,Y
+M07-02,Sodium carbonate,Chemicals,kg,50206,Raw materials consumed - chemicals,Direct material,Y
+M07-03,Preservative blend,Chemicals,kg,50206,Raw materials consumed - chemicals,Direct material,Y
+M08-01,Shipping carton 5-ply,Cartons,pcs,50207,Raw materials consumed - cartons,Direct material,Y
+M08-02,Display carton,Cartons,pcs,50207,Raw materials consumed - cartons,Direct material,Y
+M08-03,Divider insert,Cartons,pcs,50207,Raw materials consumed - cartons,Direct material,Y
+S-13100,Plant and machinery - cost,Plant and machinery,lump sum,13100,Plant and machinery - cost,Capex,Y
+S-15000,Prepayments,Prepayments,lump sum,15000,Prepayments,Contract - no PO required,N
+S-50301,Direct labour - overtime,Direct labour,lump sum,50301,Direct labour - overtime,Indirect,Y
+S-50302,Direct labour - contract,Direct labour,lump sum,50302,Direct labour - contract,Indirect,Y
+S-50400,Production overhead - power,Production overhead,lump sum,50400,Production overhead - power,Contract - no PO required,N
+S-50401,Production overhead - maintenance,Production overhead,lump sum,50401,Production overhead - maintenance,Indirect,Y
+S-50402,Production overhead - consumables,Production overhead,lump sum,50402,Production overhead - consumables,Indirect,Y
+S-50403,Production overhead - quality control,Production overhead,lump sum,50403,Production overhead - quality control,Indirect,Y
+S-50404,Production overhead - supervision,Production overhead,lump sum,50404,Production overhead - supervision,Indirect,Y
+S-60003,Staff benefits,Staff benefits,lump sum,60003,Staff benefits,Contract - no PO required,N
+S-60004,Sales commissions,Sales commissions,lump sum,60004,Sales commissions,Contract - no PO required,N
+S-61001,Warehouse rent,Warehouse rent,lump sum,61001,Warehouse rent,Contract - no PO required,N
+S-61002,Service charges,Service charges,lump sum,61002,Service charges,Contract - no PO required,N
+S-61004,Office rent,Office rent,lump sum,61004,Office rent,Contract - no PO required,N
+S-62000,Utilities - electricity,Utilities,lump sum,62000,Utilities - electricity,Contract - no PO required,N
+S-62001,Utilities - water,Utilities,lump sum,62001,Utilities - water,Contract - no PO required,N
+S-63000,Marketing - advertising,Marketing,lump sum,63000,Marketing - advertising,Indirect,Y
+S-63002,Marketing - digital,Marketing,lump sum,63002,Marketing - digital,Indirect,Y
+S-64001,Professional fees,Professional fees,lump sum,64001,Professional fees,Indirect,Y
+S-64003,Travel,Travel,lump sum,64003,Travel,Indirect,Y
+S-64004,Office costs,Office costs,lump sum,64004,Office costs,Indirect,Y
+S-64005,Licences and fees,Licences and fees,lump sum,64005,Licences and fees,Contract - no PO required,N
+S-65000,IT - services,IT,lump sum,65000,IT - services,Indirect,Y
+S-65001,IT - software licences,IT,lump sum,65001,IT - software licences,Indirect,Y
+S-65002,IT - telecoms,IT,lump sum,65002,IT - telecoms,Indirect,Y
+S-66000,Repairs - stores and depots,Repairs,lump sum,66000,Repairs - stores and depots,Indirect,Y
+S-66100,Repairs - offices,Repairs,lump sum,66100,Repairs - offices,Indirect,Y

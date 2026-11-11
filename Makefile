@@ -61,7 +61,10 @@ down-app:
 	docker compose -p $(COMPOSE_PROJECT)-app -f $(APP_COMPOSE) down
 
 seed:
-	@echo "Seed script lands in Stage 2. Run make probe first."
+	docker cp scripts/seed_erpnext.py agentic-procurement-backend-1:/home/frappe/frappe-bench/apps/frappe/frappe/seed_mizan_loader.py
+	docker cp data/mizan agentic-procurement-backend-1:/tmp/mizan-data
+	docker exec -u frappe -w /home/frappe/frappe-bench agentic-procurement-backend-1 \
+		bench --site frontend execute frappe.seed_mizan_loader.run --kwargs '{"limit": 0}'
 
 demo:
 	@echo "Primary Slack → ERPNext demo lands after Stage 6."

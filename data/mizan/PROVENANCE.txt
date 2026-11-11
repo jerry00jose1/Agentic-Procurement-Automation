@@ -1,0 +1,25 @@
+Source: findi360, Procurement Spend Dataset (Kaggle sample of DD-PRC-001).
+https://www.kaggle.com/datasets/findi360/procurement-spend-dataset-power-bi-excel
+License: CC BY 4.0. Credit findi360 (www.findi360.com).
+
+Company loaded: Northwind Components (ERPNext, Germany, ledger currency EUR).
+The source amounts are USD. They are stored as EUR figures with no exchange-rate conversion,
+so order, receipt, and invoice amounts stay comparable to the files.
+
+What the sample actually contains:
+- 64 suppliers, 51 items, 910 purchase orders (1,909 lines), 905 supplier invoices (1,870 lines)
+- Every purchase order in the file is status Closed. There are no still-open orders.
+- 65 lines were received after NeedByDate.
+- 20 lines were only partly received.
+- 19 lines have a rejected quantity, recorded on the purchase receipt.
+- 312 invoice lines differ in price from the purchase order.
+- 123 invoice lines have no purchase order. Those invoices are loaded without a PO link.
+
+ERPNext receipt documents need a stock item, so service and overhead items are stock items too.
+The file stores first and last receipt dates, not each shipment, so each purchase order gets one
+receipt on the latest LastReceiptDate of its lines.
+Where a line has a rejected quantity, the purchase-order quantity is ordered plus rejected so
+ERPNext can accept the rejected units. The source ordered quantity is in the line description.
+Eleven lines have a need-by date, a receipt date, or an invoice date before the order date.
+ERPNext will not save that sequence, so those documents use the order date. The original
+dates stay in the line description.

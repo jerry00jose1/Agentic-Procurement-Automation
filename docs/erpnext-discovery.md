@@ -28,13 +28,13 @@
 
 | DocType | List works? | Rows today | Required create fields | Notes |
 |---|---|---|---|---|
-| Company | Yes (`200`) | **0** | **UNVERIFIED** | Setup wizard not completed; company must be created before purchasing docs |
-| Supplier | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
-| Item | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
-| Warehouse | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
-| Purchase Order | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
-| Purchase Receipt | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
-| Purchase Invoice | Yes (`200`) | 0 | **UNVERIFIED** | Empty until seed |
+| Company | Yes (`200`) | **1** (`Northwind Components`, `NC`, Germany, EUR) | Created in the setup wizard | Default warehouse `Stores - NC`. Payable `3300 - Verb. aus Lieferungen und Leistungen - NC` |
+| Supplier | Yes (`200`) | 64 | `supplier_name`, `supplier_type` | Loaded from `DimSupplier.csv` |
+| Item | Yes (`200`) | 51 | `item_code`, `item_group`, `stock_uom` | Loaded from `DimItem.csv` |
+| Warehouse | Yes (`200`) | 6 | Created with the company | `Stores - NC` is the receipt warehouse |
+| Purchase Order | Yes (`200`) | 910 submitted | `supplier`, `transaction_date`, `company`, `items` | 651 completed, 243 to bill, 4 to receive and bill |
+| Purchase Receipt | Yes (`200`) | 910 submitted | `supplier`, `posting_date`, `items` | One receipt per source purchase order |
+| Purchase Invoice | Yes (`200`) | 905 submitted | `supplier`, `posting_date`, `items`, `credit_to` | `bill_no` is the source invoice number |
 
 ## Verified API Quirks
 
@@ -42,8 +42,6 @@
 2. Resource list endpoint shape confirmed: `GET /api/resource/{DocType}?limit_page_length=5` → `{"data":[...]}`.
 3. Token API key/secret generation is **UNVERIFIED** (next discovery task before long-running scripts).
 
-## Seed Implications
+## Seed
 
-- Stage 2 must create, in order: **Company → Warehouses → Item Groups / Items → Suppliers → Purchase Orders / Receipts / Invoices**.
-- Do not invent create payloads until each DocType's required fields are verified with a live `POST` (or by reading DocType meta via API).
-- Expected empty lists today are correct — not a bug.
+Loaded on 2026-11-11 from `data/mizan/` via `make seed`. See `data/mizan/PROVENANCE.txt` for what was changed to satisfy ERPNext date and receipt rules. Source amounts are USD and are stored as EUR figures.
