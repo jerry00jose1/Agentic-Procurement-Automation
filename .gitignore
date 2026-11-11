@@ -1,0 +1,39 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Environment & secrets
+.env
+.env.local
+*.pem
+*.key
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local runtime
+logs/
+tmp/
+.cache/
+*.sqlite3
+
+# ERPNext / Docker local state (never commit live site data)
+docker/erpnext/sites/
+docker/erpnext/logs/
+
+# Generated artifacts
+uv.lock.bak
+*.log

@@ -1,0 +1,24 @@
+# Application Postgres with pgvector.
+# Owns proposals, approvals, audit events, LangGraph checkpoints, and embeddings.
+# ERPNext MariaDB remains the system of record for purchasing documents.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentic-procurement-postgres
+    environment:
+      POSTGRES_USER: procurement
+      POSTGRES_PASSWORD: procurement
+      POSTGRES_DB: procurement
+    ports:
+      - "5432:5432"
+    volumes:
+      - app_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procurement -d procurement"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  app_pg_data:
