@@ -1,3 +1,5 @@
+export PATH := /Applications/Docker.app/Contents/Resources/bin:$(PATH)
+
 COMPOSE_PROJECT ?= agentic-procurement
 ERPNEXT_COMPOSE := docker/erpnext/docker-compose.yml
 APP_COMPOSE := docker/app/docker-compose.yml
@@ -18,7 +20,8 @@ help:
 	@echo "  make lint            Run ruff"
 	@echo "  make typecheck       Run mypy"
 	@echo "  make test            Run pytest"
-	@echo "  make seed            Seed ERPNext with procurement scenarios (later stage)"
+	@echo "  make seed            Seed ERPNext from data/mizan"
+	@echo "  make report          Print open orders, late suppliers, invoice mismatches"
 
 install:
 	uv sync --all-extras
@@ -65,6 +68,9 @@ seed:
 	docker cp data/mizan agentic-procurement-backend-1:/tmp/mizan-data
 	docker exec -u frappe -w /home/frappe/frappe-bench agentic-procurement-backend-1 \
 		bench --site frontend execute frappe.seed_mizan_loader.run --kwargs '{"limit": 0}'
+
+report:
+	uv run python scripts/report_exceptions.py
 
 demo:
 	@echo "Primary Slack → ERPNext demo lands after Stage 6."
