@@ -7,6 +7,29 @@ from typing import Any
 from procurement_agent.approvals.service import StoredProposal
 
 
+def purchase_message(stored: StoredProposal) -> tuple[str, list[dict[str, Any]]]:
+    line = stored.payload.items[0]
+    text = (
+        f"Buy {line.item_code} from {stored.payload.supplier}: "
+        f"qty {line.qty:g}, rate {line.rate:g} {stored.payload.currency}."
+    )
+    blocks: list[dict[str, Any]] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": text}}
+    ]
+    if stored.status == "proposed":
+        blocks.append(
+            {
+                "type": "actions",
+                "block_id": "proposal_actions",
+                "elements": [
+                    _button("Approve", "approve_proposal", stored.id, "primary"),
+                    _button("Reject", "reject_proposal", stored.id, "danger"),
+                ],
+            }
+        )
+    return text, blocks
+
+
 def proposal_message(
     stored: StoredProposal,
     *,

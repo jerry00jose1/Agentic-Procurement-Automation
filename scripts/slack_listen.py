@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post the prepared proposal to Slack and create one ERPNext draft after approval."""
+"""Listen in Slack for an item request and post one proposal to approve."""
 
 from __future__ import annotations
 
@@ -9,13 +9,12 @@ from typing import Any
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from procurement_agent.agent.case import build_replacement_case
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.approvals.writer import ErpNextDraftWriter
 from procurement_agent.config import Settings, get_settings
 from procurement_agent.erp.client import ErpNextReadClient
 from procurement_agent.slack.decisions import apply_decision
-from procurement_agent.slack.messages import proposal_message
+from procurement_agent.slack.item_reply import reply_to_text
 
 
 def main() -> None:
@@ -28,11 +27,19 @@ def main() -> None:
     @app.command("/propose")
     def propose(ack: Any, command: dict[str, Any], client: Any) -> None:
         ack()
-        text, blocks = _card(settings, vault)
-        payload: dict[str, Any] = {"channel": command["channel_id"], "text": text}
-        if blocks:
-            payload["blocks"] = blocks
-        client.chat_postMessage(**payload)
+        text = str(command.get("text") or "")
+        _post(client, str(command["channel_id"]), _answer(settings, vault, text))
+
+    @app.event("message")
+    def on_message(event: dict[str, Any], client: Any) -> None:
+        if event.get("channel") != settings.slack_channel_id:
+            return
+        if event.get("bot_id") or event.get("subtype"):
+            return
+        answer = _answer(settings, vault, str(event.get("text") or ""))
+        if answer is None:
+            return
+        _post(client, settings.slack_channel_id, answer)
 
     @app.action("approve_proposal")
     def approve(ack: Any, body: dict[str, Any], client: Any) -> None:
@@ -44,18 +51,32 @@ def main() -> None:
         ack()
         _act(vault, writer, body, client, "reject_proposal")
 
-    if settings.slack_channel_id:
-        text, blocks = _card(settings, vault)
-        payload: dict[str, Any] = {"channel": settings.slack_channel_id, "text": text}
-        if blocks:
-            payload["blocks"] = blocks
-        app.client.chat_postMessage(**payload)
-        print(f"Posted the proposal to {settings.slack_channel_id}")
-    print("Listening for Approve and Reject. Leave this running.")
+    print("Listening in Slack. Name an item, for example: I need S-66100")
     SocketModeHandler(app, app_token).start()
 
 
-def _card(settings: Settings, vault: ApprovalVault) -> tuple[str, list[dict[str, Any]] | None]:
+def _answer(
+    settings: Settings,
+    vault: ApprovalVault,
+    text: str,
+) -> tuple[str, list[dict[str, Any]] | None] | None:
+    if not text.strip():
+        return "Name an item, for example: I need S-66100", None
+    orders, order_items, receipts, receipt_items = _load(settings)
+    return reply_to_text(
+        vault,
+        text,
+        orders,
+        order_items,
+        receipts,
+        receipt_items,
+        today=date.today(),
+    )
+
+
+def _load(
+    settings: Settings,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     with ErpNextReadClient(settings) as erp:
         orders = erp.list_all(
             "Purchase Order",
@@ -86,19 +107,21 @@ def _card(settings: Settings, vault: ApprovalVault) -> tuple[str, list[dict[str,
             ["name", "parent", "purchase_order_item"],
             parent="Purchase Receipt",
         )
-    case = build_replacement_case(
-        orders,
-        order_items,
-        receipts,
-        receipt_items,
-        today=date.today(),
-    )
-    if case is None:
-        return "No replacement case is available.", None
-    stored = vault.get_by_key(case.case_id)
-    if stored is None:
-        return "No proposal is filed yet. Run make propose first.", None
-    return proposal_message(stored, late_supplier=case.late_supplier)
+    return orders, order_items, receipts, receipt_items
+
+
+def _post(
+    client: Any,
+    channel: str,
+    answer: tuple[str, list[dict[str, Any]] | None] | None,
+) -> None:
+    if answer is None:
+        return
+    text, blocks = answer
+    payload: dict[str, Any] = {"channel": channel, "text": text}
+    if blocks:
+        payload["blocks"] = blocks
+    client.chat_postMessage(**payload)
 
 
 def _act(

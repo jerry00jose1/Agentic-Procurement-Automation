@@ -24,7 +24,7 @@ help:
 	@echo "  make report          Print open orders, late suppliers, invoice mismatches"
 	@echo "  make init-db         Create approval tables in app Postgres"
 	@echo "  make propose         File one replacement proposal from the command line"
-	@echo "  make slack           Listen for Slack approval of that proposal"
+	@echo "  make slack           Listen for an item request in Slack"
 
 install:
 	uv sync --all-extras
