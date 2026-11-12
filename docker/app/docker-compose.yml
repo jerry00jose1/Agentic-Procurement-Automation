@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: procurement
       POSTGRES_DB: procurement
     ports:
-      - "5432:5432"
+      # Host 5432 is often a local Postgres. The container still listens on 5432.
+      - "5433:5432"
     volumes:
       - app_pg_data:/var/lib/postgresql/data
     healthcheck:

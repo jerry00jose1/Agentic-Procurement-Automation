@@ -1,0 +1,222 @@
+"""Store a proposed purchase order and enforce approval in Python."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Protocol
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
+
+from procurement_agent.approvals.errors import ApprovalError
+from procurement_agent.approvals.models import AuditEventRow, Base, ProposalRow
+from procurement_agent.approvals.orders import DraftPurchaseOrder
+
+ACTION = "create_draft_purchase_order"
+
+
+class DraftPurchaseOrderWriter(Protocol):
+    def create_draft(self, order: DraftPurchaseOrder) -> str:
+        """Create one ERPNext draft and return its document name."""
+
+
+@dataclass(frozen=True)
+class StoredProposal:
+    id: str
+    idempotency_key: str
+    status: str
+    payload: DraftPurchaseOrder
+    payload_hash: str
+    approved_by: str | None
+    erp_document_name: str | None
+
+
+class ApprovalVault:
+    def __init__(self, sessions: sessionmaker[Session], approvers: set[str]) -> None:
+        self._sessions = sessions
+        self._approvers = approvers
+
+    def stage(self, idempotency_key: str, order: DraftPurchaseOrder) -> StoredProposal:
+        """Save the order, or return the existing row for this key. Never overwrites it."""
+        session = self._sessions()
+        try:
+            existing = session.scalar(
+                select(ProposalRow).where(ProposalRow.idempotency_key == idempotency_key)
+            )
+            if existing is not None:
+                return _stored(existing)
+            row = ProposalRow(
+                id=str(uuid.uuid4()),
+                idempotency_key=idempotency_key,
+                action=ACTION,
+                payload_json=order.canonical_json(),
+                payload_hash=order.fingerprint(),
+                status="proposed",
+                approved_by=None,
+                erp_document_name=None,
+                created_at=_now(),
+            )
+            session.add(row)
+            _audit(session, row.id, "staged", "system", order.fingerprint())
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def replace(self, proposal_id: str, order: DraftPurchaseOrder, actor: str) -> StoredProposal:
+        """Change a proposal that nobody has approved yet."""
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            if row.status != "proposed":
+                _audit(session, row.id, "replace_denied", actor, row.status)
+                session.commit()
+                raise ApprovalError("immutable", "Approved parameters cannot be changed.")
+            row.payload_json = order.canonical_json()
+            row.payload_hash = order.fingerprint()
+            _audit(session, row.id, "replaced", actor, row.payload_hash)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def approve(self, proposal_id: str, user_id: str) -> StoredProposal:
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            _require_approver(session, row, user_id, "approve_denied", self._approvers)
+            _require_intact(session, row, user_id)
+            if row.status != "proposed":
+                _audit(session, row.id, "approve_denied", user_id, row.status)
+                session.commit()
+                raise ApprovalError("invalid_state", f"Cannot approve a {row.status} proposal.")
+            row.status = "approved"
+            row.approved_by = user_id
+            _audit(session, row.id, "approved", user_id, row.payload_hash)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def reject(self, proposal_id: str, user_id: str) -> StoredProposal:
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            _require_approver(session, row, user_id, "reject_denied", self._approvers)
+            if row.status != "proposed":
+                _audit(session, row.id, "reject_denied", user_id, row.status)
+                session.commit()
+                raise ApprovalError("invalid_state", f"Cannot reject a {row.status} proposal.")
+            row.status = "rejected"
+            _audit(session, row.id, "rejected", user_id, "")
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def execute(
+        self,
+        proposal_id: str,
+        user_id: str,
+        writer: DraftPurchaseOrderWriter,
+    ) -> StoredProposal:
+        """Create the ERPNext draft once. A second call returns the same document name."""
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            _require_approver(session, row, user_id, "execute_denied", self._approvers)
+            _require_intact(session, row, user_id)
+            if row.status == "executed":
+                _audit(session, row.id, "execute_replayed", user_id, row.erp_document_name or "")
+                session.commit()
+                return _stored(row)
+            if row.status == "executing":
+                _audit(session, row.id, "execute_denied", user_id, "already started")
+                session.commit()
+                raise ApprovalError("invalid_state", "Execution already started.")
+            if row.status != "approved":
+                _audit(session, row.id, "execute_denied", user_id, row.status)
+                session.commit()
+                raise ApprovalError("invalid_state", "Only an approved proposal can be executed.")
+            order = DraftPurchaseOrder.model_validate_json(row.payload_json)
+            row.status = "executing"
+            _audit(session, row.id, "execution_started", user_id, row.payload_hash)
+            session.commit()
+            document_name = writer.create_draft(order)
+            row.status = "executed"
+            row.erp_document_name = document_name
+            _audit(session, row.id, "executed", user_id, document_name)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+
+def init_database(url: str) -> sessionmaker[Session]:
+    from sqlalchemy import create_engine
+
+    engine = create_engine(url)
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _audit(session: Session, proposal_id: str, event: str, actor: str, detail: str) -> None:
+    session.add(
+        AuditEventRow(
+            proposal_id=proposal_id,
+            event=event,
+            actor=actor,
+            detail=detail,
+            created_at=_now(),
+        )
+    )
+
+
+def _require(session: Session, proposal_id: str) -> ProposalRow:
+    row = session.get(ProposalRow, proposal_id)
+    if row is None:
+        raise ApprovalError("not_found", "Proposal does not exist.")
+    return row
+
+
+def _require_approver(
+    session: Session,
+    row: ProposalRow,
+    user_id: str,
+    event: str,
+    approvers: set[str],
+) -> None:
+    if user_id in approvers:
+        return
+    _audit(session, row.id, event, user_id, "not an approver")
+    session.commit()
+    raise ApprovalError("unauthorized", "This user cannot approve or execute ERP writes.")
+
+
+def _require_intact(session: Session, row: ProposalRow, user_id: str) -> None:
+    try:
+        order = DraftPurchaseOrder.model_validate_json(row.payload_json)
+    except ValueError:
+        order = None
+    if order is None or order.fingerprint() != row.payload_hash:
+        _audit(session, row.id, "tamper_detected", user_id, row.payload_hash)
+        session.commit()
+        raise ApprovalError("tampered", "Stored parameters do not match their fingerprint.")
+
+
+def _stored(row: ProposalRow) -> StoredProposal:
+    return StoredProposal(
+        id=row.id,
+        idempotency_key=row.idempotency_key,
+        status=row.status,
+        payload=DraftPurchaseOrder.model_validate_json(row.payload_json),
+        payload_hash=row.payload_hash,
+        approved_by=row.approved_by,
+        erp_document_name=row.erp_document_name,
+    )

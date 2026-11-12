@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     erpnext_api_secret: SecretStr | None = None
     erpnext_timeout_seconds: float = 30.0
 
-    database_url: str = "postgresql+psycopg://procurement:procurement@localhost:5432/procurement"
+    database_url: str = "postgresql+psycopg://procurement:procurement@localhost:5433/procurement"
 
     llm_provider: Literal["openai", "deepseek", "anthropic", "gemini"] = "openai"
     llm_model: str = "gpt-4.1-mini"
