@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     slack_app_token: SecretStr | None = None
     slack_signing_secret: SecretStr | None = None
     slack_approver_user_ids: str = Field(default="")
+    slack_channel_id: str = ""
 
     require_human_approval_for_erp_writes: bool = True
 

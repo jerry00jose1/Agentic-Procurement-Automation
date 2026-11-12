@@ -76,6 +76,14 @@ class ApprovalVault:
         finally:
             session.close()
 
+    def get(self, proposal_id: str) -> StoredProposal | None:
+        session = self._sessions()
+        try:
+            row = session.get(ProposalRow, proposal_id)
+            return None if row is None else _stored(row)
+        finally:
+            session.close()
+
     def replace(self, proposal_id: str, order: DraftPurchaseOrder, actor: str) -> StoredProposal:
         """Change a proposal that nobody has approved yet."""
         session = self._sessions()
