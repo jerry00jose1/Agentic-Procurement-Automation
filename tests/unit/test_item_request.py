@@ -99,6 +99,9 @@ def test_purchase_uses_the_better_suppliers_latest_price() -> None:
     assert purchase.order.items[0].qty == 8
     assert purchase.order.items[0].rate == 7
     assert purchase.order.schedule_date == TODAY + timedelta(days=14)
+    assert [row.supplier for row in purchase.considered] == ["Good Co", "Late Co"]
+    assert purchase.considered[0].eligible is True
+    assert purchase.considered[1].eligible is True
 
 
 def test_unknown_item_has_no_purchase() -> None:

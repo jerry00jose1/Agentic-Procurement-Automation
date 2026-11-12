@@ -39,4 +39,4 @@ def reply_to_text(
     if purchase is None:
         return f"Nobody has purchased {item_code}.", None
     stored = file_item_purchase(vault, purchase)
-    return purchase_message(stored)
+    return purchase_message(stored, purchase.considered)

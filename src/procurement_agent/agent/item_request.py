@@ -19,11 +19,21 @@ _LEAD_TIME_DAYS = 14
 
 
 @dataclass(frozen=True)
+class ConsideredSupplier:
+    supplier: str
+    rate: float
+    on_time_rate: float | None
+    scored_lines: int
+    eligible: bool
+
+
+@dataclass(frozen=True)
 class ItemPurchase:
     item_code: str
     supplier: str
     on_time_rate: float | None
     order: DraftPurchaseOrder
+    considered: tuple[ConsideredSupplier, ...]
 
 
 def mentioned_item_code(text: str, known_codes: set[str]) -> str | None:
@@ -67,6 +77,7 @@ def build_item_purchase(
         item_code=item_code,
         supplier=chosen.supplier,
         on_time_rate=record.on_time_rate if record is not None else None,
+        considered=_considered(sellers, performance, chosen.supplier),
         order=DraftPurchaseOrder(
             supplier=chosen.supplier,
             company=chosen.company,
@@ -136,6 +147,34 @@ def _sellers(
         ):
             latest[supplier] = seller
     return list(latest.values())
+
+
+def _considered(
+    sellers: list[_Seller],
+    performance: dict[str, SupplierPerformance],
+    chosen: str,
+) -> tuple[ConsideredSupplier, ...]:
+    rows: list[ConsideredSupplier] = []
+    for seller in sellers:
+        record = performance.get(seller.supplier)
+        rows.append(
+            ConsideredSupplier(
+                supplier=seller.supplier,
+                rate=seller.rate,
+                on_time_rate=None if record is None else record.on_time_rate,
+                scored_lines=0 if record is None else record.lines,
+                eligible=_scored(record) is not None,
+            )
+        )
+    rows.sort(
+        key=lambda row: (
+            row.supplier != chosen,
+            not row.eligible,
+            -(row.on_time_rate or 0),
+            row.supplier,
+        )
+    )
+    return tuple(rows)
 
 
 def _scored(record: SupplierPerformance | None) -> SupplierPerformance | None:

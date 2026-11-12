@@ -52,7 +52,10 @@ def test_naming_an_item_files_a_proposal() -> None:
     answer = reply_to_text(vault, "I need ITEM-A", orders, items, [], [], today=TODAY)
     assert answer is not None
     text, blocks = answer
-    assert text == "Buy ITEM-A from Good Co: qty 8, rate 7 EUR."
+    assert "Buy ITEM-A from Good Co: qty 8, rate 7 EUR." in text
+    assert "1 supplier has sold ITEM-A." in text
+    assert "Good Co is the only supplier on record for this item." in text
+    assert "Good Co: no scored deliveries, latest rate 7 (chosen)" in text
     stored = vault.get_by_key("item:ITEM-A")
     assert stored is not None
     assert blocks is not None
