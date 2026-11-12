@@ -59,6 +59,7 @@ class ApprovalVault:
                 created_at=_now(),
             )
             session.add(row)
+            session.flush()
             _audit(session, row.id, "staged", "system", order.fingerprint())
             session.commit()
             return _stored(row)

@@ -1,4 +1,4 @@
-export PATH := /Applications/Docker.app/Contents/Resources/bin:$(PATH)
+export PATH := $(HOME)/.local/bin:/Applications/Docker.app/Contents/Resources/bin:$(PATH)
 
 COMPOSE_PROJECT ?= agentic-procurement
 ERPNEXT_COMPOSE := docker/erpnext/docker-compose.yml
