@@ -4,7 +4,7 @@ COMPOSE_PROJECT ?= agentic-procurement
 ERPNEXT_COMPOSE := docker/erpnext/docker-compose.yml
 APP_COMPOSE := docker/app/docker-compose.yml
 
-.PHONY: help install lint typecheck test up-erpnext down-erpnext logs-erpnext wait-erpnext probe seed up-app down-app demo
+.PHONY: help install lint typecheck test up-erpnext down-erpnext logs-erpnext wait-erpnext probe seed up-app down-app init-db demo
 
 help:
 	@echo "Agentic Procurement Automation"
@@ -22,6 +22,7 @@ help:
 	@echo "  make test            Run pytest"
 	@echo "  make seed            Seed ERPNext from data/mizan"
 	@echo "  make report          Print open orders, late suppliers, invoice mismatches"
+	@echo "  make init-db         Create approval tables in app Postgres"
 
 install:
 	uv sync --all-extras
@@ -71,6 +72,9 @@ seed:
 
 report:
 	uv run python scripts/report_exceptions.py
+
+init-db:
+	uv run python scripts/init_approval_db.py
 
 demo:
 	@echo "Primary Slack → ERPNext demo lands after Stage 6."
