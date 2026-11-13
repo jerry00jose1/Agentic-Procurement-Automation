@@ -9,12 +9,14 @@ from typing import Any
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
+from procurement_agent.agent.buyer_request import OpenAIRequestReader
+from procurement_agent.agent.graph import openai_chat_model
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.approvals.writer import ErpNextDraftWriter
 from procurement_agent.config import Settings, get_settings
 from procurement_agent.erp.client import ErpNextReadClient
 from procurement_agent.slack.decisions import apply_decision
-from procurement_agent.slack.item_reply import reply_to_text
+from procurement_agent.slack.item_reply import ItemReply, reply_to_text
 
 
 def main() -> None:
@@ -22,13 +24,14 @@ def main() -> None:
     bot_token, app_token, signing_secret = _tokens(settings)
     vault = ApprovalVault(init_database(settings.database_url), settings.approver_user_ids)
     writer = ErpNextDraftWriter(settings)
+    reader = OpenAIRequestReader(openai_chat_model(settings))
     app = App(token=bot_token, signing_secret=signing_secret)
 
     @app.command("/propose")
     def propose(ack: Any, command: dict[str, Any], client: Any) -> None:
         ack()
         text = str(command.get("text") or "")
-        _post(client, str(command["channel_id"]), _answer(settings, vault, text))
+        _deliver(client, vault, str(command["channel_id"]), _answer(settings, vault, reader, text))
 
     @app.event("message")
     def on_message(event: dict[str, Any], client: Any) -> None:
@@ -36,10 +39,12 @@ def main() -> None:
             return
         if event.get("bot_id") or event.get("subtype"):
             return
-        answer = _answer(settings, vault, str(event.get("text") or ""))
-        if answer is None:
-            return
-        _post(client, settings.slack_channel_id, answer)
+        _deliver(
+            client,
+            vault,
+            settings.slack_channel_id,
+            _answer(settings, vault, reader, str(event.get("text") or "")),
+        )
 
     @app.action("approve_proposal")
     def approve(ack: Any, body: dict[str, Any], client: Any) -> None:
@@ -58,10 +63,11 @@ def main() -> None:
 def _answer(
     settings: Settings,
     vault: ApprovalVault,
+    reader: OpenAIRequestReader,
     text: str,
-) -> tuple[str, list[dict[str, Any]] | None] | None:
+) -> ItemReply:
     if not text.strip():
-        return "Name an item, for example: I need S-66100", None
+        return ItemReply("Name an item, for example: I need S-66100", None, None, None, None)
     orders, order_items, receipts, receipt_items = _load(settings)
     return reply_to_text(
         vault,
@@ -70,6 +76,7 @@ def _answer(
         order_items,
         receipts,
         receipt_items,
+        reader,
         today=date.today(),
     )
 
@@ -110,18 +117,23 @@ def _load(
     return orders, order_items, receipts, receipt_items
 
 
-def _post(
-    client: Any,
-    channel: str,
-    answer: tuple[str, list[dict[str, Any]] | None] | None,
-) -> None:
-    if answer is None:
+def _deliver(client: Any, vault: ApprovalVault, channel: str, reply: ItemReply) -> None:
+    if reply.slack_channel and reply.slack_ts:
+        client.chat_update(
+            channel=reply.slack_channel,
+            ts=reply.slack_ts,
+            text=reply.text,
+            blocks=reply.blocks or [],
+        )
         return
-    text, blocks = answer
-    payload: dict[str, Any] = {"channel": channel, "text": text}
-    if blocks:
-        payload["blocks"] = blocks
-    client.chat_postMessage(**payload)
+    payload: dict[str, Any] = {"channel": channel, "text": reply.text}
+    if reply.blocks:
+        payload["blocks"] = reply.blocks
+    response = client.chat_postMessage(**payload)
+    getter = getattr(response, "get", None)
+    ts = getter("ts") if callable(getter) else None
+    if reply.proposal_id and isinstance(ts, str):
+        vault.remember_slack(reply.proposal_id, channel, ts)
 
 
 def _act(

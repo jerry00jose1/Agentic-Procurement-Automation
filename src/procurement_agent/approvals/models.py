@@ -23,6 +23,8 @@ class ProposalRow(Base):
     status: Mapped[str] = mapped_column(String(32))
     approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     erp_document_name: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    slack_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    slack_ts: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

@@ -4,13 +4,15 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from procurement_agent.agent.buyer_request import BuyerRequest, default_request, mentioned_item_code
 from procurement_agent.agent.item_request import (
+    ItemPurchase,
     build_item_purchase,
     file_item_purchase,
-    mentioned_item_code,
 )
 from procurement_agent.approvals.models import Base
 from procurement_agent.approvals.service import ApprovalVault
+from procurement_agent.slack.messages import button_labels, purchase_message
 
 TODAY = date(2026, 11, 12)
 NEED = date(2024, 6, 1)
@@ -86,14 +88,7 @@ def test_named_text_finds_the_longest_item_code() -> None:
 
 def test_purchase_uses_the_better_suppliers_latest_price() -> None:
     books = _sample()
-    purchase = build_item_purchase(
-        "ITEM-A",
-        books.orders,
-        books.items,
-        books.receipts,
-        books.receipt_items,
-        today=TODAY,
-    )
+    purchase = _purchase(books, default_request("ITEM-A"))
     assert purchase is not None
     assert purchase.supplier == "Good Co"
     assert purchase.order.items[0].qty == 8
@@ -102,21 +97,99 @@ def test_purchase_uses_the_better_suppliers_latest_price() -> None:
     assert [row.supplier for row in purchase.considered] == ["Good Co", "Late Co"]
     assert purchase.considered[0].eligible is True
     assert purchase.considered[1].eligible is True
+    stored = file_item_purchase(_vault(), purchase).stored
+    text, blocks = purchase_message(stored, purchase)
+    assert "Good Co was on time for 100% of 5 deliveries" in text
+    assert "Late Co was on time for 0% of 5 deliveries" in text
+    assert "Good Co wins." in text
+    assert "Late Co is 2 EUR cheaper, and price was not the rule." in text
+    assert text.index("Good Co wins.") < text.index("Draft purchase order")
+    assert button_labels(blocks) == ["Create draft PO", "Don't order"]
+
+
+def test_an_exclusion_removes_that_supplier_before_the_ranking() -> None:
+    books = _sample()
+    purchase = _purchase(books, BuyerRequest("ITEM-A", "on_time", ("Good Co",), None, None))
+    assert purchase is not None
+    assert purchase.supplier == "Late Co"
+    assert purchase.order.items[0].rate == 5
+    assert purchase.order.items[0].qty == 12
+
+
+def test_lowest_price_stays_inside_the_five_delivery_rule() -> None:
+    books = _sample()
+    books.add("Short Co", "ITEM-A", 3, 1, late_days=0, when=date(2024, 4, 1))
+    books.add("Short Co", "ITEM-A", 3, 1, late_days=0, when=date(2024, 4, 2))
+    purchase = _purchase(books, BuyerRequest("ITEM-A", "lowest_price", (), None, None))
+    assert purchase is not None
+    assert purchase.supplier == "Late Co"
+    assert purchase.order.items[0].rate == 5
+
+
+def test_a_named_supplier_can_override_the_five_delivery_rule() -> None:
+    books = _sample()
+    books.add("Short Co", "ITEM-A", 3, 1, late_days=0, when=date(2024, 4, 1))
+    books.add("Short Co", "ITEM-A", 3, 1, late_days=0, when=date(2024, 4, 2))
+    purchase = _purchase(books, BuyerRequest("ITEM-A", "named_supplier", (), "Short Co", None))
+    assert purchase is not None
+    assert purchase.supplier == "Short Co"
+    assert purchase.order.items[0].rate == 1
+    assert purchase.considered[0].eligible is False
+
+
+def test_a_stated_quantity_replaces_the_latest_order_quantity() -> None:
+    books = _sample()
+    purchase = _purchase(books, BuyerRequest("ITEM-A", "on_time", (), None, 10))
+    assert purchase is not None
+    assert purchase.supplier == "Good Co"
+    assert purchase.order.items[0].qty == 10
+    assert purchase.order.items[0].rate == 7
+    assert purchase.qty_from_buyer is True
+
+
+def test_without_scored_deliveries_the_most_recent_seller_is_used() -> None:
+    orders = [
+        {
+            "name": "PO-1",
+            "supplier": "Old Co",
+            "transaction_date": "2024-01-01",
+            "company": "Northwind Components",
+        },
+        {
+            "name": "PO-2",
+            "supplier": "New Co",
+            "transaction_date": "2024-06-01",
+            "company": "Northwind Components",
+        },
+    ]
+    items = [
+        {
+            "name": "L1",
+            "parent": "PO-1",
+            "item_code": "ITEM-A",
+            "qty": 1,
+            "rate": 4,
+            "warehouse": "Stores - NC",
+        },
+        {
+            "name": "L2",
+            "parent": "PO-2",
+            "item_code": "ITEM-A",
+            "qty": 2,
+            "rate": 9,
+            "warehouse": "Stores - NC",
+        },
+    ]
+    purchase = build_item_purchase(orders, items, [], [], default_request("ITEM-A"), today=TODAY)
+    assert purchase is not None
+    assert purchase.supplier == "New Co"
+    assert purchase.order.items[0].qty == 2
+    assert purchase.order.items[0].rate == 9
 
 
 def test_unknown_item_has_no_purchase() -> None:
     books = _sample()
-    assert (
-        build_item_purchase(
-            "MISSING",
-            books.orders,
-            books.items,
-            books.receipts,
-            books.receipt_items,
-            today=TODAY,
-        )
-        is None
-    )
+    assert _purchase(books, default_request("MISSING")) is None
 
 
 def _vault() -> ApprovalVault:
@@ -138,18 +211,55 @@ def _vault() -> ApprovalVault:
 
 def test_a_rejected_item_can_be_requested_again() -> None:
     books = _sample()
-    purchase = build_item_purchase(
-        "ITEM-A",
+    purchase = _purchase(books, default_request("ITEM-A"))
+    assert purchase is not None
+    vault = _vault()
+    first = file_item_purchase(vault, purchase)
+    vault.reject(first.stored.id, "U-APPROVER")
+    second = file_item_purchase(vault, purchase)
+    assert second.stored.id != first.stored.id
+    assert second.stored.status == "proposed"
+
+
+def test_a_follow_up_edits_the_card_already_posted() -> None:
+    books = _sample()
+    original = _purchase(books, default_request("ITEM-A"))
+    revised = _purchase(books, BuyerRequest("ITEM-A", "on_time", ("Good Co",), None, None))
+    assert original is not None and revised is not None
+    vault = _vault()
+    first = file_item_purchase(vault, original)
+    vault.remember_slack(first.stored.id, "C1", "111.222")
+    second = file_item_purchase(vault, revised)
+    assert second.stored.id == first.stored.id
+    assert second.posted_anew is False
+    assert second.stored.slack_ts == "111.222"
+    assert second.stored.payload.supplier == "Late Co"
+    assert second.stored.payload_hash == revised.order.fingerprint()
+
+
+def test_a_follow_up_without_a_card_closes_the_old_proposal() -> None:
+    books = _sample()
+    original = _purchase(books, default_request("ITEM-A"))
+    revised = _purchase(books, BuyerRequest("ITEM-A", "on_time", (), None, 10))
+    assert original is not None and revised is not None
+    vault = _vault()
+    first = file_item_purchase(vault, original)
+    second = file_item_purchase(vault, revised)
+    closed = vault.get(first.stored.id)
+    assert closed is not None
+    assert closed.status == "rejected"
+    assert second.stored.id != first.stored.id
+    assert second.posted_anew is True
+    assert second.notice == "The previous card for this item no longer applies."
+    assert second.stored.payload.items[0].qty == 10
+
+
+def _purchase(books: _Books, request: BuyerRequest) -> ItemPurchase | None:
+    return build_item_purchase(
         books.orders,
         books.items,
         books.receipts,
         books.receipt_items,
+        request,
         today=TODAY,
     )
-    assert purchase is not None
-    vault = _vault()
-    first = file_item_purchase(vault, purchase)
-    vault.reject(first.id, "U-APPROVER")
-    second = file_item_purchase(vault, purchase)
-    assert second.id != first.id
-    assert second.status == "proposed"

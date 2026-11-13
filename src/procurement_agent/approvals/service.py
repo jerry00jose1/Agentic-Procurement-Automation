@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from procurement_agent.approvals.errors import ApprovalError
@@ -31,6 +32,8 @@ class StoredProposal:
     payload_hash: str
     approved_by: str | None
     erp_document_name: str | None
+    slack_channel: str | None
+    slack_ts: str | None
 
 
 class ApprovalVault:
@@ -56,6 +59,8 @@ class ApprovalVault:
                 status="proposed",
                 approved_by=None,
                 erp_document_name=None,
+                slack_channel=None,
+                slack_ts=None,
                 created_at=_now(),
             )
             session.add(row)
@@ -96,6 +101,35 @@ class ApprovalVault:
             row.payload_json = order.canonical_json()
             row.payload_hash = order.fingerprint()
             _audit(session, row.id, "replaced", actor, row.payload_hash)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def remember_slack(self, proposal_id: str, channel: str, ts: str) -> StoredProposal:
+        """Remember which Slack message shows this proposal, so a later reply can edit it."""
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            row.slack_channel = channel
+            row.slack_ts = ts
+            _audit(session, row.id, "slack_posted", "system", ts)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def supersede(self, proposal_id: str) -> StoredProposal:
+        """Close an unapproved proposal whose Slack message can no longer be edited."""
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            if row.status != "proposed":
+                _audit(session, row.id, "supersede_denied", "system", row.status)
+                session.commit()
+                raise ApprovalError("invalid_state", f"Cannot supersede a {row.status} proposal.")
+            row.status = "rejected"
+            _audit(session, row.id, "superseded", "system", "slack message was not on file")
             session.commit()
             return _stored(row)
         finally:
@@ -178,7 +212,17 @@ def init_database(url: str) -> sessionmaker[Session]:
 
     engine = create_engine(url)
     Base.metadata.create_all(engine)
+    _ensure_slack_columns(engine)
     return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def _ensure_slack_columns(engine: Engine) -> None:
+    present = {column["name"] for column in inspect(engine).get_columns("proposals")}
+    with engine.begin() as connection:
+        if "slack_channel" not in present:
+            connection.execute(text("ALTER TABLE proposals ADD COLUMN slack_channel VARCHAR(64)"))
+        if "slack_ts" not in present:
+            connection.execute(text("ALTER TABLE proposals ADD COLUMN slack_ts VARCHAR(64)"))
 
 
 def _now() -> datetime:
@@ -238,4 +282,6 @@ def _stored(row: ProposalRow) -> StoredProposal:
         payload_hash=row.payload_hash,
         approved_by=row.approved_by,
         erp_document_name=row.erp_document_name,
+        slack_channel=row.slack_channel,
+        slack_ts=row.slack_ts,
     )

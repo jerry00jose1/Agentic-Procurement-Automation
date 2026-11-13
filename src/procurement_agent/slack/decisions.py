@@ -23,10 +23,10 @@ def apply_decision(
 
 def _reject(vault: ApprovalVault, proposal_id: str, user_id: str) -> str:
     try:
-        stored = vault.reject(proposal_id, user_id)
+        vault.reject(proposal_id, user_id)
     except ApprovalError as exc:
         return str(exc)
-    return f"Rejected proposal {stored.id}."
+    return "No order created."
 
 
 def _approve(
