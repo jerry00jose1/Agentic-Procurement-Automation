@@ -33,7 +33,10 @@ class IntentModel(GenericFakeChatModel):
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
         assert kwargs == {"method": "json_schema", "strict": True}
         if schema is BuyerIntent:
-            return self | RunnableLambda(lambda message: schema.model_validate_json(message.content))
+            parse = RunnableLambda(
+                lambda message: schema.model_validate_json(message.content)
+            )
+            return self | parse
         assert schema is SupplierDecision
         decision = self.decisions.pop(0)
         return RunnableLambda(lambda _message: schema.model_validate(decision))
@@ -158,7 +161,11 @@ def _shortlist(first: str = "Supplier X", second: str = "Supplier Y") -> dict[st
         "explanation": f"{first} matches the request more closely than {second}.",
         "options": [
             {"supplier": first, "reason": "Better recorded delivery.", "tradeoff": "Higher price."},
-            {"supplier": second, "reason": "Lower historical price.", "tradeoff": "Weaker delivery."},
+            {
+                "supplier": second,
+                "reason": "Lower historical price.",
+                "tradeoff": "Weaker delivery.",
+            },
         ],
     }
 
@@ -212,7 +219,7 @@ def test_choosing_a_listed_option_prepares_that_supplier(demo):
 
 
 def test_packaging_asks_item_and_quantity_even_after_a_comparison(demo):
-    demo.say("Compare ITEM-A", intent("compare", item="ITEM-A"))
+    demo.say("Compare ITEM-A", intent("compare", item="ITEM-A"), decision=_shortlist())
     reply = demo.say("Order some packaging", intent("purchase", item="packaging"))
     assert "Which item" in reply.text and "How many units" in reply.text
     assert reply.blocks is None and demo.count() == 0
@@ -226,7 +233,11 @@ def test_packaging_asks_item_and_quantity_even_after_a_comparison(demo):
 def test_questions_never_change_a_pending_proposal(demo):
     prepared = demo.prepare()
     before = demo.vault.get(prepared.proposal_id)
-    reply = demo.say("What would 100 cost? Don't order", intent("compare", item="ITEM-A", qty=100))
+    reply = demo.say(
+        "What would 100 cost? Don't order",
+        intent("compare", item="ITEM-A", qty=100),
+        decision=_shortlist(),
+    )
     after = demo.vault.get(prepared.proposal_id)
     assert reply.proposal_id is None and demo.count() == 1
     assert before.payload_hash == after.payload_hash and after.status == "proposed"
