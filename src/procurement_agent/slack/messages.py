@@ -28,22 +28,6 @@ def order_card(
     return text, blocks
 
 
-def proposal_message(
-    stored: StoredProposal,
-    *,
-    late_supplier: str,
-) -> tuple[str, list[dict[str, Any]]]:
-    line = stored.payload.items[0]
-    text = (
-        f"Replace {late_supplier} with {stored.payload.supplier}: "
-        f"{line.item_code}, qty {line.qty:g}, rate {line.rate:g} {stored.payload.currency}."
-    )
-    blocks: list[dict[str, Any]] = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
-    if stored.status == "proposed":
-        blocks.append(_actions(stored.id))
-    return text, blocks
-
-
 def _draft(stored: StoredProposal) -> str:
     line = stored.payload.items[0]
     return "\n".join(

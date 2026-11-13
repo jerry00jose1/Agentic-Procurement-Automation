@@ -15,7 +15,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk.errors import SlackApiError
 
-from procurement_agent.agent.graph import openai_chat_model
+from procurement_agent.agent.model import openai_chat_model
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.approvals.writer import ErpNextDraftWriter
 from procurement_agent.config import Settings, get_settings

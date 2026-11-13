@@ -1,16 +1,6 @@
 from datetime import date, timedelta
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from procurement_agent.agent.item_request import (
-    file_item_purchase,
-    order_for,
-    seller_facts,
-)
-from procurement_agent.approvals.models import Base
-from procurement_agent.approvals.service import ApprovalVault
+from procurement_agent.agent.item_request import order_for, seller_facts
 
 TODAY = date(2026, 11, 12)
 NEED = date(2024, 6, 1)
@@ -115,65 +105,3 @@ def test_an_order_uses_the_row_rate() -> None:
     assert order.items[0].rate == 7
     assert order.schedule_date == TODAY + timedelta(days=14)
 
-
-def _vault() -> ApprovalVault:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _foreign_keys(dbapi_connection, _record) -> None:  # type: ignore[no-untyped-def]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(engine)
-    return ApprovalVault(sessionmaker(bind=engine, expire_on_commit=False), {"U-APPROVER"})
-
-
-def _good_order(books: _Books, qty: float = 8):
-    fact = next(
-        fact
-        for fact in seller_facts(
-            "ITEM-A", books.orders, books.items, books.receipts, books.receipt_items
-        )
-        if fact.supplier == "Good Co"
-    )
-    return order_for(fact, "ITEM-A", qty, TODAY)
-
-
-def test_a_rejected_item_can_be_requested_again() -> None:
-    books = _sample()
-    vault = _vault()
-    first = file_item_purchase(vault, "ITEM-A", _good_order(books))
-    vault.reject(first.stored.id, "U-APPROVER")
-    second = file_item_purchase(vault, "ITEM-A", _good_order(books))
-    assert second.stored.id != first.stored.id
-    assert second.stored.status == "proposed"
-
-
-def test_a_follow_up_edits_the_card_already_posted() -> None:
-    books = _sample()
-    vault = _vault()
-    first = file_item_purchase(vault, "ITEM-A", _good_order(books))
-    vault.remember_slack(first.stored.id, "C1", "111.222")
-    second = file_item_purchase(vault, "ITEM-A", _good_order(books, qty=10))
-    assert second.stored.id == first.stored.id
-    assert second.posted_anew is False
-    assert second.stored.slack_ts == "111.222"
-    assert second.stored.payload.items[0].qty == 10
-    assert second.stored.payload.items[0].rate == 7
-
-
-def test_a_follow_up_without_a_card_closes_the_old_proposal() -> None:
-    books = _sample()
-    vault = _vault()
-    first = file_item_purchase(vault, "ITEM-A", _good_order(books))
-    second = file_item_purchase(vault, "ITEM-A", _good_order(books, qty=10))
-    closed = vault.get(first.stored.id)
-    assert closed is not None
-    assert closed.status == "rejected"
-    assert second.stored.id != first.stored.id
-    assert second.notice == "The previous card for this item no longer applies."

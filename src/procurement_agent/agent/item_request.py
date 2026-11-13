@@ -1,4 +1,4 @@
-"""Facts about who has sold an item, and filing of an order someone already chose.
+"""Facts about who has sold an item.
 
 The supplier and the price have to come from these facts. This module does not choose.
 """
@@ -9,12 +9,10 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from procurement_agent.approvals.errors import ApprovalError
 from procurement_agent.approvals.orders import DraftPurchaseOrder, PurchaseOrderLine
-from procurement_agent.approvals.service import ApprovalVault, StoredProposal
+from procurement_agent.approvals.service import StoredProposal
 from procurement_agent.domain.exceptions import _as_date, supplier_performance
 
-MIN_SCORED_LINES = 5
 _LEAD_TIME_DAYS = 14
 
 
@@ -87,34 +85,6 @@ def order_for(fact: SellerFact, item_code: str, qty: float, today: date) -> Draf
         schedule_date=today + timedelta(days=_LEAD_TIME_DAYS),
         items=[PurchaseOrderLine(item_code=item_code, qty=qty, rate=fact.rate)],
     )
-
-
-def file_item_purchase(
-    vault: ApprovalVault,
-    item_code: str,
-    order: DraftPurchaseOrder,
-) -> FiledPurchase:
-    """Save the purchase. An open card is updated; an unseen card is closed first."""
-    base = f"item:{item_code}"
-    notice: str | None = None
-    for attempt in range(1, 21):
-        key = base if attempt == 1 else f"{base}:{attempt}"
-        existing = vault.get_by_key(key)
-        if existing is None:
-            return FiledPurchase(vault.stage(key, order), True, notice)
-        if existing.status == "rejected":
-            continue
-        if existing.status != "proposed":
-            return FiledPurchase(existing, False, None)
-        if existing.payload_hash == order.fingerprint():
-            has_card = bool(existing.slack_channel and existing.slack_ts)
-            return FiledPurchase(existing, not has_card, None)
-        if existing.slack_channel and existing.slack_ts:
-            updated = vault.replace(existing.id, order, "buyer")
-            return FiledPurchase(updated, False, None)
-        vault.supersede(existing.id)
-        notice = "The previous card for this item no longer applies."
-    raise ApprovalError("invalid_state", "This item has been rejected too many times.")
 
 
 @dataclass(frozen=True)

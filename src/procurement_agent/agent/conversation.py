@@ -338,23 +338,3 @@ def _supplier(name: str | None, facts: list[SellerFact]) -> SellerFact | None:
     matches = exact or [fact for fact in facts if name.casefold() in fact.supplier.casefold()]
     return matches[0] if len(matches) == 1 else None
 
-
-def comparison(item: str, facts: list[SellerFact]) -> str:
-    if not facts:
-        return f"No usable supplier purchase history exists for {item}. No proposal created."
-    rows = [f"Recorded suppliers for {item} (historical prices, not current quotations):"]
-    for fact in facts:
-        delivery = (
-            "no scored receipts"
-            if fact.on_time_rate is None
-            else f"{fact.on_time_rate:.0%} on time across {fact.scored_lines} scored receipt lines"
-        )
-        rows.append(
-            f"• {fact.supplier}: latest unit price {fact.rate:g} {fact.currency} "
-            f"({fact.when.isoformat()}); {delivery}."
-        )
-    rows.append(
-        "Delivery history is supplier-wide and covers recorded receipt dates; "
-        "it does not establish current availability or full delivery. No proposal created."
-    )
-    return "\n".join(rows)

@@ -15,7 +15,7 @@ from tempfile import TemporaryDirectory
 from zoneinfo import ZoneInfo
 
 from procurement_agent.agent.conversation import resolve_date
-from procurement_agent.agent.graph import openai_chat_model
+from procurement_agent.agent.model import openai_chat_model
 from procurement_agent.approvals.orders import DraftPurchaseOrder
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.config import get_settings

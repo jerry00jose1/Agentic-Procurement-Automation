@@ -8,7 +8,7 @@ from procurement_agent.approvals.models import Base
 from procurement_agent.approvals.orders import DraftPurchaseOrder, PurchaseOrderLine
 from procurement_agent.approvals.service import ApprovalVault
 from procurement_agent.slack.decisions import apply_decision
-from procurement_agent.slack.messages import button_values, proposal_message
+from procurement_agent.slack.messages import button_values, order_card
 
 
 class _Writer:
@@ -47,13 +47,13 @@ def _stage(vault: ApprovalVault):
         schedule_date=date(2026, 11, 26),
         items=[PurchaseOrderLine(item_code="S-66100", qty=1, rate=3119.43)],
     )
-    return vault.stage("replacement:line", order)
+    return vault.stage("request:line:1", order)
 
 
 def test_buttons_carry_only_the_proposal_id() -> None:
     vault = _vault()
     stored = _stage(vault)
-    _text, blocks = proposal_message(stored, late_supplier="Oasis Industries LLC 107")
+    _text, blocks = order_card("Buy S-66100 from Jebel.", stored)
     assert button_values(blocks) == [stored.id, stored.id]
     assert "3119.43" not in "".join(button_values(blocks))
 
