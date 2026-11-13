@@ -43,6 +43,8 @@ def openai_chat_model(settings: Settings) -> ChatOpenAI:
         model=settings.llm_model,
         api_key=key,
         temperature=0,
+        timeout=30,
+        max_retries=1,
     )
 
 

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     app_log_level: str = "INFO"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
+    app_timezone: str = "Europe/Berlin"
 
     erpnext_base_url: str = "http://localhost:8080"
     erpnext_site: str = "frontend"

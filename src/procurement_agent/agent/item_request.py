@@ -28,6 +28,8 @@ class SellerFact:
     when: date
     on_time_rate: float | None
     scored_lines: int
+    currency: str = "EUR"
+    uom: str | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,10 @@ def seller_facts(
                 when=seller.when,
                 on_time_rate=None if record is None else record.on_time_rate,
                 scored_lines=0 if record is None else record.lines,
+                currency=str(order_of[seller.order_name].get("currency") or "EUR"),
+                uom=next((str(item["uom"]) for item in order_items
+                          if item.get("parent") == seller.order_name
+                          and item.get("item_code") == item_code and item.get("uom")), None),
             )
         )
     facts.sort(key=lambda fact: fact.supplier)
@@ -76,6 +82,7 @@ def order_for(fact: SellerFact, item_code: str, qty: float, today: date) -> Draf
         supplier=fact.supplier,
         company=fact.company,
         warehouse=fact.warehouse,
+        currency=fact.currency,
         transaction_date=today,
         schedule_date=today + timedelta(days=_LEAD_TIME_DAYS),
         items=[PurchaseOrderLine(item_code=item_code, qty=qty, rate=fact.rate)],

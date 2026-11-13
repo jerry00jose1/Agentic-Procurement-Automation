@@ -1,0 +1,26 @@
+{
+  "orders": [
+    {"name": "PO-X1", "supplier": "Supplier X", "transaction_date": "2026-09-01", "company": "Demo Company", "currency": "EUR", "docstatus": 1},
+    {"name": "PO-X2", "supplier": "Supplier X", "transaction_date": "2026-10-01", "company": "Demo Company", "currency": "EUR", "docstatus": 1},
+    {"name": "PO-Y1", "supplier": "Supplier Y", "transaction_date": "2026-09-01", "company": "Demo Company", "currency": "EUR", "docstatus": 1},
+    {"name": "PO-Y2", "supplier": "Supplier Y", "transaction_date": "2026-10-01", "company": "Demo Company", "currency": "EUR", "docstatus": 1}
+  ],
+  "order_items": [
+    {"name": "LX1", "parent": "PO-X1", "item_code": "ITEM-A", "qty": 99, "rate": 11, "schedule_date": "2026-09-10", "warehouse": "Stores - DC"},
+    {"name": "LX2", "parent": "PO-X2", "item_code": "ITEM-A", "qty": 99, "rate": 10, "schedule_date": "2026-10-10", "warehouse": "Stores - DC"},
+    {"name": "LY1", "parent": "PO-Y1", "item_code": "ITEM-A", "qty": 55, "rate": 9, "schedule_date": "2026-09-10", "warehouse": "Stores - DC"},
+    {"name": "LY2", "parent": "PO-Y2", "item_code": "ITEM-A", "qty": 55, "rate": 8, "schedule_date": "2026-10-10", "warehouse": "Stores - DC"}
+  ],
+  "receipts": [
+    {"name": "PR-X1", "posting_date": "2026-09-10", "docstatus": 1},
+    {"name": "PR-X2", "posting_date": "2026-10-10", "docstatus": 1},
+    {"name": "PR-Y1", "posting_date": "2026-09-12", "docstatus": 1},
+    {"name": "PR-Y2", "posting_date": "2026-10-13", "docstatus": 1}
+  ],
+  "receipt_items": [
+    {"parent": "PR-X1", "purchase_order_item": "LX1"},
+    {"parent": "PR-X2", "purchase_order_item": "LX2"},
+    {"parent": "PR-Y1", "purchase_order_item": "LY1"},
+    {"parent": "PR-Y2", "purchase_order_item": "LY2"}
+  ]
+}

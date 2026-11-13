@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableLambda
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -19,6 +19,9 @@ TODAY = date(2026, 11, 12)
 
 
 class _ScriptedModel(GenericFakeChatModel):
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
+        return self | RunnableLambda(lambda message: schema.model_validate_json(message.content))
+
     def bind_tools(
         self,
         tools: Any,
@@ -138,31 +141,14 @@ def test_the_model_reply_is_the_decision_and_the_draft_is_the_recorded_order() -
         messages=iter(
             [
                 AIMessage(
-                    content="",
-                    tool_calls=[
+                    content=json.dumps(
                         {
-                            "name": "lookup_sellers",
-                            "args": {"item_code": "ITEM-A"},
-                            "id": "call-1",
-                            "type": "tool_call",
+                            "action": "purchase",
+                            "item": "ITEM-A",
+                            "supplier": "Good Co",
+                            "qty": 8,
+                            "required_by": "next Friday",
                         }
-                    ],
-                ),
-                AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "file_purchase",
-                            "args": {"item_code": "ITEM-A", "supplier": "Good Co", "qty": 8},
-                            "id": "call-2",
-                            "type": "tool_call",
-                        }
-                    ],
-                ),
-                AIMessage(
-                    content=(
-                        "You asked for ITEM-A. "
-                        "Good Co is the supplier on record, latest rate 7 EUR."
                     )
                 ),
             ]
@@ -170,11 +156,12 @@ def test_the_model_reply_is_the_decision_and_the_draft_is_the_recorded_order() -
     )
     vault = _vault()
     answer = reply_to_text(vault, "I need ITEM-A", orders, items, [], [], model, today=TODAY)
-    assert "You asked for ITEM-A." in answer.text
+    assert "Prepared 8 units of ITEM-A" in answer.text
     assert "Good Co" in answer.text
     assert "ITEM-A · qty 8 · 7 EUR" in answer.text
     assert answer.blocks is not None
-    stored = vault.get_by_key("item:ITEM-A")
+    assert answer.proposal_id is not None
+    stored = vault.get(answer.proposal_id)
     assert stored is not None
     assert answer.proposal_id == stored.id
     assert button_values(answer.blocks) == [stored.id, stored.id]
@@ -183,8 +170,24 @@ def test_the_model_reply_is_the_decision_and_the_draft_is_the_recorded_order() -
 
 def test_a_reply_without_an_order_has_no_buttons() -> None:
     orders, items = _records()
-    model = _ScriptedModel(messages=iter([AIMessage(content="Which item do you need?")]))
+    model = _ScriptedModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content=json.dumps(
+                        {
+                            "action": "clarify",
+                            "item": None,
+                            "supplier": None,
+                            "qty": None,
+                            "required_by": None,
+                        }
+                    )
+                )
+            ]
+        )
+    )
     answer = reply_to_text(_vault(), "hello", orders, items, [], [], model, today=TODAY)
     assert answer.blocks is None
     assert answer.proposal_id is None
-    assert answer.text == "Which item do you need?"
+    assert "Which item and quantity?" in answer.text

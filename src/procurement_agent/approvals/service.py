@@ -12,7 +12,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from procurement_agent.approvals.errors import ApprovalError
-from procurement_agent.approvals.models import AuditEventRow, Base, ProposalRow
+from procurement_agent.approvals.models import AuditEventRow, Base, ConversationRow, ProposalRow
 from procurement_agent.approvals.orders import DraftPurchaseOrder
 
 ACTION = "create_draft_purchase_order"
@@ -40,6 +40,16 @@ class ApprovalVault:
     def __init__(self, sessions: sessionmaker[Session], approvers: set[str]) -> None:
         self._sessions = sessions
         self._approvers = approvers
+
+    def conversation(self, conversation_id: str) -> str | None:
+        with self._sessions() as session:
+            row = session.get(ConversationRow, conversation_id)
+            return None if row is None else row.state_json
+
+    def save_conversation(self, conversation_id: str, state_json: str) -> None:
+        with self._sessions() as session:
+            session.merge(ConversationRow(id=conversation_id, state_json=state_json))
+            session.commit()
 
     def stage(self, idempotency_key: str, order: DraftPurchaseOrder) -> StoredProposal:
         """Save the order, or return the existing row for this key. Never overwrites it."""
@@ -119,7 +129,9 @@ class ApprovalVault:
         finally:
             session.close()
 
-    def supersede(self, proposal_id: str) -> StoredProposal:
+    def supersede(
+        self, proposal_id: str, reason: str = "slack message was not on file"
+    ) -> StoredProposal:
         """Close an unapproved proposal whose Slack message can no longer be edited."""
         session = self._sessions()
         try:
@@ -129,7 +141,7 @@ class ApprovalVault:
                 session.commit()
                 raise ApprovalError("invalid_state", f"Cannot supersede a {row.status} proposal.")
             row.status = "rejected"
-            _audit(session, row.id, "superseded", "system", "slack message was not on file")
+            _audit(session, row.id, "superseded", "system", reason)
             session.commit()
             return _stored(row)
         finally:

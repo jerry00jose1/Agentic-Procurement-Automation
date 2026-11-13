@@ -38,9 +38,7 @@ def proposal_message(
         f"Replace {late_supplier} with {stored.payload.supplier}: "
         f"{line.item_code}, qty {line.qty:g}, rate {line.rate:g} {stored.payload.currency}."
     )
-    blocks: list[dict[str, Any]] = [
-        {"type": "section", "text": {"type": "mrkdwn", "text": text}}
-    ]
+    blocks: list[dict[str, Any]] = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
     if stored.status == "proposed":
         blocks.append(_actions(stored.id))
     return text, blocks
@@ -54,7 +52,11 @@ def _draft(stored: StoredProposal) -> str:
             "Create draft PO writes this into ERPNext as a draft. It is not submitted.",
             stored.payload.supplier,
             f"{line.item_code} · qty {line.qty:g} · {line.rate:g} {stored.payload.currency}",
-            "The price is that supplier's latest order.",
+            f"Required by: {stored.payload.schedule_date.isoformat()}",
+            f"Company: {stored.payload.company} · Warehouse: {stored.payload.warehouse}",
+            f"Estimated line total: {line.qty * line.rate:,.2f} {stored.payload.currency} "
+            "(before taxes and charges)",
+            "The price is that supplier's latest order, not a current quotation.",
         ]
     )
 

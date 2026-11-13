@@ -12,6 +12,13 @@ class Base(DeclarativeBase):
     pass
 
 
+class ConversationRow(Base):
+    __tablename__ = "buyer_conversations"
+
+    id: Mapped[str] = mapped_column(String(250), primary_key=True)
+    state_json: Mapped[str] = mapped_column(Text)
+
+
 class ProposalRow(Base):
     __tablename__ = "proposals"
 

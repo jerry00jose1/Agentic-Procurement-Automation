@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from procurement_agent.agent.buyer import run_buyer
+from procurement_agent.agent.conversation import run_conversation
 from procurement_agent.approvals.service import ApprovalVault
 from procurement_agent.slack.messages import order_card
 
@@ -32,11 +33,12 @@ def reply_to_text(
     model: BaseChatModel,
     *,
     today: date,
+    conversation_id: str = "default",
 ) -> ItemReply:
     if not text.strip():
         return _say("Name an item, for example: I need S-66100")
     try:
-        decision, filed = run_buyer(
+        decision, filed = run_conversation(
             model,
             vault,
             text,
@@ -45,9 +47,11 @@ def reply_to_text(
             receipts,
             receipt_items,
             today=today,
+            conversation_id=conversation_id,
         )
     except Exception:
-        return _say("I could not complete that request.")
+        logging.getLogger(__name__).exception("Buyer request failed")
+        return _say("I could not complete that request. Please try again; no ERP order was sent.")
     if filed is None:
         return _say(decision or "Name an item this company has purchased, for example S-66100.")
     stored = filed.stored
