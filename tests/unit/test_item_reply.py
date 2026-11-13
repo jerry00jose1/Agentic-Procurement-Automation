@@ -1,10 +1,15 @@
+import json
 from datetime import date
+from typing import Any
 
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.runnables import Runnable
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from procurement_agent.agent.buyer_request import BuyerRequest
+from procurement_agent.agent.buyer import BUYER_RULES, make_buyer_tools
 from procurement_agent.approvals.models import Base
 from procurement_agent.approvals.service import ApprovalVault
 from procurement_agent.slack.item_reply import reply_to_text
@@ -13,12 +18,16 @@ from procurement_agent.slack.messages import button_labels, button_values
 TODAY = date(2026, 11, 12)
 
 
-class _Reader:
-    def __init__(self, request: BuyerRequest) -> None:
-        self.request = request
-
-    def read(self, text: str, item_codes: set[str], suppliers: set[str]) -> BuyerRequest:
-        return self.request
+class _ScriptedModel(GenericFakeChatModel):
+    def bind_tools(
+        self,
+        tools: Any,
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> Runnable[Any, AIMessage]:
+        del tools, tool_choice, kwargs
+        return self
 
 
 def _vault() -> ApprovalVault:
@@ -38,7 +47,7 @@ def _vault() -> ApprovalVault:
     return ApprovalVault(sessionmaker(bind=engine, expire_on_commit=False), set())
 
 
-def _books() -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+def _records() -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     orders = [
         {
             "name": "PO-1",
@@ -74,62 +83,108 @@ def _books() -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     return orders, items
 
 
-def test_naming_an_item_files_a_proposal() -> None:
-    orders, items = _books()
+def test_the_buyer_rules_tell_the_model_how_to_decide_and_reply() -> None:
+    assert "Call lookup_sellers" in BUYER_RULES
+    assert "at least 5 scored deliveries" in BUYER_RULES
+    assert "The price is that row's latest_rate." in BUYER_RULES
+    assert "What they asked." in BUYER_RULES
+    assert "You cannot approve the order" in BUYER_RULES
+    assert "chosen" not in BUYER_RULES
+
+
+def test_lookup_returns_facts_and_does_not_choose() -> None:
+    orders, items = _records()
+    lookup = make_buyer_tools(_vault(), orders, items, [], [], today=TODAY, filed=[])[0]
+    payload = json.loads(lookup.invoke({"item_code": "ITEM-A"}))
+    assert payload["item_code"] == "ITEM-A"
+    assert [row["supplier"] for row in payload["sellers"]] == ["Good Co", "Late Co"]
+    assert payload["sellers"][0]["latest_rate"] == 7
+    assert "chosen" not in payload
+
+
+def test_a_supplier_who_has_not_sold_the_item_is_refused() -> None:
+    orders, items = _records()
     vault = _vault()
-    reader = _Reader(BuyerRequest("ITEM-A", "on_time", (), None, None))
-    answer = reply_to_text(vault, "I need ITEM-A", orders, items, [], [], reader, today=TODAY)
-    assert "You asked for ITEM-A." in answer.text
-    assert "2 suppliers have sold ITEM-A." in answer.text
-    assert "Good Co is the most recent seller." in answer.text
-    assert "*Draft purchase order*" in answer.text
-    assert "ITEM-A · qty 8 · 7 EUR" in answer.text
-    assert answer.text.index("You asked for ITEM-A.") < answer.text.index("Draft purchase order")
+    file_purchase = make_buyer_tools(vault, orders, items, [], [], today=TODAY, filed=[])[1]
+    payload = json.loads(
+        file_purchase.invoke(
+            {"item_code": "ITEM-A", "supplier": "Horizon Enterprises LLC 121", "qty": 1}
+        )
+    )
+    assert "has not sold" in payload["error"]
+    assert payload["sellers"] == ["Good Co", "Late Co"]
+    assert vault.get_by_key("item:ITEM-A") is None
+
+
+def test_filing_uses_the_recorded_rate() -> None:
+    orders, items = _records()
+    vault = _vault()
+    filed: list = []
+    file_purchase = make_buyer_tools(vault, orders, items, [], [], today=TODAY, filed=filed)[1]
+    payload = json.loads(
+        file_purchase.invoke({"item_code": "ITEM-A", "supplier": "Late Co", "qty": 10})
+    )
+    assert payload["rate"] == 5
+    assert payload["qty"] == 10
     stored = vault.get_by_key("item:ITEM-A")
     assert stored is not None
+    assert stored.payload.items[0].rate == 5
+    assert filed[0].stored.id == stored.id
+
+
+def test_the_model_reply_is_the_decision_and_the_draft_is_the_recorded_order() -> None:
+    orders, items = _records()
+    model = _ScriptedModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "lookup_sellers",
+                            "args": {"item_code": "ITEM-A"},
+                            "id": "call-1",
+                            "type": "tool_call",
+                        }
+                    ],
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "file_purchase",
+                            "args": {"item_code": "ITEM-A", "supplier": "Good Co", "qty": 8},
+                            "id": "call-2",
+                            "type": "tool_call",
+                        }
+                    ],
+                ),
+                AIMessage(
+                    content=(
+                        "You asked for ITEM-A. "
+                        "Good Co is the supplier on record, latest rate 7 EUR."
+                    )
+                ),
+            ]
+        )
+    )
+    vault = _vault()
+    answer = reply_to_text(vault, "I need ITEM-A", orders, items, [], [], model, today=TODAY)
+    assert "You asked for ITEM-A." in answer.text
+    assert "Good Co" in answer.text
+    assert "ITEM-A · qty 8 · 7 EUR" in answer.text
     assert answer.blocks is not None
+    stored = vault.get_by_key("item:ITEM-A")
+    assert stored is not None
+    assert answer.proposal_id == stored.id
     assert button_values(answer.blocks) == [stored.id, stored.id]
     assert button_labels(answer.blocks) == ["Create draft PO", "Don't order"]
-    assert answer.proposal_id == stored.id
 
 
-def test_a_message_without_an_item_asks_for_one() -> None:
-    reader = _Reader(BuyerRequest(None, "on_time", (), None, None))
-    answer = reply_to_text(_vault(), "hello", [], [], [], [], reader, today=TODAY)
+def test_a_reply_without_an_order_has_no_buttons() -> None:
+    orders, items = _records()
+    model = _ScriptedModel(messages=iter([AIMessage(content="Which item do you need?")]))
+    answer = reply_to_text(_vault(), "hello", orders, items, [], [], model, today=TODAY)
     assert answer.blocks is None
     assert answer.proposal_id is None
-    assert "Name an item" in answer.text
-
-
-def test_an_exclusion_rewrites_the_same_card() -> None:
-    orders, items = _books()
-    vault = _vault()
-    first = reply_to_text(
-        vault,
-        "I need ITEM-A",
-        orders,
-        items,
-        [],
-        [],
-        _Reader(BuyerRequest("ITEM-A", "on_time", (), None, None)),
-        today=TODAY,
-    )
-    assert first.proposal_id is not None
-    vault.remember_slack(first.proposal_id, "C1", "111.222")
-    second = reply_to_text(
-        vault,
-        "I need ITEM-A, not from Good Co",
-        orders,
-        items,
-        [],
-        [],
-        _Reader(BuyerRequest("ITEM-A", "on_time", ("Good Co",), None, None)),
-        today=TODAY,
-    )
-    assert second.proposal_id == first.proposal_id
-    assert second.slack_channel == "C1"
-    assert second.slack_ts == "111.222"
-    assert "not from Good Co" in second.text
-    assert "Excluded: Good Co." in second.text
-    assert "Late Co" in second.text
-    assert "qty 12 · 5 EUR" in second.text
+    assert answer.text == "Which item do you need?"

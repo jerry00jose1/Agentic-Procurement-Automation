@@ -6,10 +6,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from procurement_agent.agent.buyer_request import OpenAIRequestReader
 from procurement_agent.agent.graph import openai_chat_model
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.approvals.writer import ErpNextDraftWriter
@@ -24,14 +24,14 @@ def main() -> None:
     bot_token, app_token, signing_secret = _tokens(settings)
     vault = ApprovalVault(init_database(settings.database_url), settings.approver_user_ids)
     writer = ErpNextDraftWriter(settings)
-    reader = OpenAIRequestReader(openai_chat_model(settings))
+    model = openai_chat_model(settings)
     app = App(token=bot_token, signing_secret=signing_secret)
 
     @app.command("/propose")
     def propose(ack: Any, command: dict[str, Any], client: Any) -> None:
         ack()
         text = str(command.get("text") or "")
-        _deliver(client, vault, str(command["channel_id"]), _answer(settings, vault, reader, text))
+        _deliver(client, vault, str(command["channel_id"]), _answer(settings, vault, model, text))
 
     @app.event("message")
     def on_message(event: dict[str, Any], client: Any) -> None:
@@ -43,7 +43,7 @@ def main() -> None:
             client,
             vault,
             settings.slack_channel_id,
-            _answer(settings, vault, reader, str(event.get("text") or "")),
+            _answer(settings, vault, model, str(event.get("text") or "")),
         )
 
     @app.action("approve_proposal")
@@ -63,7 +63,7 @@ def main() -> None:
 def _answer(
     settings: Settings,
     vault: ApprovalVault,
-    reader: OpenAIRequestReader,
+    model: BaseChatModel,
     text: str,
 ) -> ItemReply:
     if not text.strip():
@@ -76,7 +76,7 @@ def _answer(
         order_items,
         receipts,
         receipt_items,
-        reader,
+        model,
         today=date.today(),
     )
 
