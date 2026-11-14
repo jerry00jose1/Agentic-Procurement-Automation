@@ -22,6 +22,9 @@ class DraftPurchaseOrderWriter(Protocol):
     def create_draft(self, order: DraftPurchaseOrder) -> str:
         """Create one ERPNext draft and return its document name."""
 
+    def submit(self, name: str) -> None:
+        """Submit an existing ERPNext purchase order."""
+
 
 @dataclass(frozen=True)
 class StoredProposal:
@@ -186,6 +189,9 @@ class ApprovalVault:
         proposal_id: str,
         user_id: str,
         writer: DraftPurchaseOrderWriter,
+        *,
+        submit: bool = False,
+        hold_for_second_approver: bool = False,
     ) -> StoredProposal:
         """Create the ERPNext draft once. A second call returns the same document name."""
         session = self._sessions()
@@ -210,9 +216,56 @@ class ApprovalVault:
             _audit(session, row.id, "execution_started", user_id, row.payload_hash)
             session.commit()
             document_name = writer.create_draft(order)
-            row.status = "executed"
             row.erp_document_name = document_name
+            row.status = "drafted"
+            _audit(session, row.id, "drafted", user_id, document_name)
+            session.commit()
+            if hold_for_second_approver:
+                return _stored(row)
+            if submit:
+                writer.submit(document_name)
+                _audit(session, row.id, "submitted", user_id, document_name)
+            row.status = "executed"
             _audit(session, row.id, "executed", user_id, document_name)
+            session.commit()
+            return _stored(row)
+        finally:
+            session.close()
+
+    def submit_draft(
+        self,
+        proposal_id: str,
+        user_id: str,
+        writer: DraftPurchaseOrderWriter,
+        *,
+        allow_same_approver: bool = False,
+    ) -> StoredProposal:
+        """Submit a draft already created for an over-limit order. The first approver cannot."""
+        session = self._sessions()
+        try:
+            row = _require(session, proposal_id)
+            _require_approver(session, row, user_id, "submit_denied", self._approvers)
+            _require_intact(session, row, user_id)
+            if row.status == "executed" and row.erp_document_name:
+                return _stored(row)
+            if row.status != "drafted" or not row.erp_document_name:
+                _audit(session, row.id, "submit_denied", user_id, row.status)
+                session.commit()
+                raise ApprovalError("invalid_state", "There is no draft waiting for submission.")
+            if user_id == row.approved_by and not allow_same_approver:
+                _audit(session, row.id, "submit_denied", user_id, "same approver")
+                session.commit()
+                raise ApprovalError(
+                    "second_approver",
+                    "A second approver has to submit an order over the limit.",
+                )
+            name = row.erp_document_name
+            row.status = "executing"
+            _audit(session, row.id, "submission_started", user_id, name)
+            session.commit()
+            writer.submit(name)
+            row.status = "executed"
+            _audit(session, row.id, "submitted", user_id, name)
             session.commit()
             return _stored(row)
         finally:

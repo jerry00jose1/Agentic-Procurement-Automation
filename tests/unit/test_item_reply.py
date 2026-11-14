@@ -105,7 +105,7 @@ def test_the_model_reply_is_the_decision_and_the_draft_is_the_recorded_order() -
     assert stored is not None
     assert answer.proposal_id == stored.id
     assert button_values(answer.blocks) == [stored.id, stored.id]
-    assert button_labels(answer.blocks) == ["Create draft PO", "Don't order"]
+    assert button_labels(answer.blocks) == ["Place order", "Don't order"]
 
 
 def test_a_reply_without_an_order_has_no_buttons() -> None:

@@ -12,48 +12,70 @@ def order_card(
     stored: StoredProposal,
     *,
     notice: str | None = None,
+    submit_limit: float = 5000,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """The model's decision, then the exact draft the button will create."""
+    """The model's decision, then the exact order the button will file."""
     body = decision.strip()
     if notice:
         body = f"{notice}\n\n{body}" if body else notice
-    draft = _draft(stored)
+    draft = _draft(stored, submit_limit)
     text = f"{body}\n\n{draft}" if body else draft
     blocks: list[dict[str, Any]] = []
     if body:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body}})
     blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": draft}})
-    if stored.status == "proposed":
-        blocks.append(_actions(stored.id))
+    actions = _actions(stored, submit_limit)
+    if actions is not None:
+        blocks.append(actions)
     return text, blocks
 
 
-def _draft(stored: StoredProposal) -> str:
+def _draft(stored: StoredProposal, submit_limit: float) -> str:
     line = stored.payload.items[0]
+    total = stored.payload.line_total()
+    currency = stored.payload.currency
+    within = total <= submit_limit
+    if stored.status == "drafted":
+        outcome = (
+            f"Draft {stored.erp_document_name} is over {submit_limit:,.0f} {currency}. "
+            "A different approver has to submit it."
+        )
+    elif within:
+        outcome = (
+            f"This total is within {submit_limit:,.0f} {currency}. "
+            "Place order submits it in ERPNext."
+        )
+    else:
+        outcome = (
+            f"This total is over {submit_limit:,.0f} {currency}. "
+            "Create draft PO saves a draft until a second approver submits it."
+        )
     return "\n".join(
         [
-            "*Draft purchase order*",
-            "Create draft PO writes this into ERPNext as a draft. It is not submitted.",
+            "*Purchase order*",
+            outcome,
             stored.payload.supplier,
-            f"{line.item_code} · qty {line.qty:g} · {line.rate:g} {stored.payload.currency}",
+            f"{line.item_code} · qty {line.qty:g} · {line.rate:g} {currency}",
             f"Required by: {stored.payload.schedule_date.isoformat()}",
             f"Company: {stored.payload.company} · Warehouse: {stored.payload.warehouse}",
-            f"Estimated line total: {line.qty * line.rate:,.2f} {stored.payload.currency} "
-            "(before taxes and charges)",
+            f"Estimated line total: {total:,.2f} {currency} (before taxes and charges)",
             "The price is that supplier's latest order, not a current quotation.",
         ]
     )
 
 
-def _actions(proposal_id: str) -> dict[str, Any]:
-    return {
-        "type": "actions",
-        "block_id": "proposal_actions",
-        "elements": [
-            _button("Create draft PO", "approve_proposal", proposal_id, "primary"),
-            _button("Don't order", "reject_proposal", proposal_id, "danger"),
-        ],
-    }
+def _actions(stored: StoredProposal, submit_limit: float) -> dict[str, Any] | None:
+    if stored.status == "drafted":
+        buttons = [_button("Submit order", "submit_proposal", stored.id, "primary")]
+    elif stored.status == "proposed":
+        label = "Place order" if stored.payload.line_total() <= submit_limit else "Create draft PO"
+        buttons = [
+            _button(label, "approve_proposal", stored.id, "primary"),
+            _button("Don't order", "reject_proposal", stored.id, "danger"),
+        ]
+    else:
+        return None
+    return {"type": "actions", "block_id": "proposal_actions", "elements": buttons}
 
 
 def button_values(blocks: list[dict[str, Any]]) -> list[str]:

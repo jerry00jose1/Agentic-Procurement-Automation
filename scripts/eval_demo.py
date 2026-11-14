@@ -31,6 +31,9 @@ class RecordingWriter:
         self.orders.append(order)
         return "DEMO-PO-001"
 
+    def submit(self, name: str) -> None:
+        return None
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)

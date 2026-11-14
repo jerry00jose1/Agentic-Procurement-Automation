@@ -30,6 +30,10 @@ class DraftPurchaseOrder(BaseModel):
     currency: str = "EUR"
     items: list[PurchaseOrderLine] = Field(min_length=1)
 
+    def line_total(self) -> float:
+        line = self.items[0]
+        return line.qty * line.rate
+
     def canonical_json(self) -> str:
         return json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
 

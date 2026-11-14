@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 
 from procurement_agent.approvals.orders import DraftPurchaseOrder
@@ -51,6 +53,15 @@ class ErpNextDraftWriter:
         if not isinstance(name, str) or not name:
             raise RuntimeError("ERPNext did not return a purchase order name.")
         return name
+
+    def submit(self, name: str) -> None:
+        self._login()
+        response = self._client.post(
+            "/api/method/frappe.client.submit",
+            headers=self._headers(),
+            data={"doc": json.dumps({"doctype": "Purchase Order", "name": name})},
+        )
+        response.raise_for_status()
 
     def _login(self) -> None:
         if self._sid or (self._settings.erpnext_api_key and self._settings.erpnext_api_secret):

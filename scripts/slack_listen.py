@@ -23,6 +23,7 @@ from procurement_agent.erp.client import ErpNextReadClient
 from procurement_agent.policy.retrieve import shared_embedder
 from procurement_agent.slack.decisions import apply_decision
 from procurement_agent.slack.item_reply import ItemReply, reply_to_text
+from procurement_agent.slack.messages import order_card
 
 
 def main() -> None:
@@ -80,12 +81,33 @@ def main() -> None:
     @app.action("approve_proposal")
     def approve(ack: Any, body: dict[str, Any], client: Any) -> None:
         ack()
-        _act(vault, writer, body, client, "approve_proposal", settings.erpnext_base_url)
+        _act(
+            vault,
+            writer,
+            body,
+            client,
+            "approve_proposal",
+            settings.erpnext_base_url,
+            settings.order_submit_limit,
+        )
+
+    @app.action("submit_proposal")
+    def submit(ack: Any, body: dict[str, Any], client: Any) -> None:
+        ack()
+        _act(
+            vault,
+            writer,
+            body,
+            client,
+            "submit_proposal",
+            settings.erpnext_base_url,
+            settings.order_submit_limit,
+        )
 
     @app.action("reject_proposal")
     def reject(ack: Any, body: dict[str, Any], client: Any) -> None:
         ack()
-        _act(vault, writer, body, client, "reject_proposal")
+        _act(vault, writer, body, client, "reject_proposal", None, settings.order_submit_limit)
 
     print("Listening in Slack. Compare suppliers for an item, then continue in that thread.")
     SocketModeHandler(app, app_token).start()
@@ -119,6 +141,7 @@ def _answer(
         invoices=invoices,
         invoice_items=invoice_items,
         embedder=shared_embedder(),
+        submit_limit=settings.order_submit_limit,
     )
 
 
@@ -226,6 +249,7 @@ def _act(
     client: Any,
     action: str,
     erp_base_url: str | None = None,
+    submit_limit: float = 5000,
 ) -> None:
     actions = body.get("actions") or []
     proposal_id = actions[0].get("value") if actions else ""
@@ -239,6 +263,7 @@ def _act(
             action=action,
             proposal_id=proposal_id,
             user_id=user_id,
+            submit_limit=submit_limit,
         )
     channel = (body.get("channel") or {}).get("id")
     message_ts = (body.get("message") or {}).get("ts")
@@ -249,10 +274,12 @@ def _act(
             + "/app/purchase-order/"
             + quote(stored.erp_document_name, safe="")
         )
-        text += f" <{url}|Open draft in ERPNext>"
+        text += f" <{url}|Open in ERPNext>"
     if channel and message_ts:
-        succeeded = bool(stored and stored.status == "executed") or text == "No order created."
-        if succeeded:
+        if stored and stored.status == "drafted":
+            card, blocks = order_card(text, stored, submit_limit=submit_limit)
+            client.chat_update(channel=channel, ts=message_ts, text=card, blocks=blocks)
+        elif (stored and stored.status == "executed") or text == "No order created.":
             client.chat_update(channel=channel, ts=message_ts, text=text, blocks=[])
         else:
             client.chat_postEphemeral(channel=channel, user=user_id, text=text)

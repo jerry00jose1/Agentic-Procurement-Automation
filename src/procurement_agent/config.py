@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     slack_channel_id: str = ""
 
     require_human_approval_for_erp_writes: bool = True
+    order_submit_limit: float = 5000
 
     @property
     def approver_user_ids(self) -> set[str]:

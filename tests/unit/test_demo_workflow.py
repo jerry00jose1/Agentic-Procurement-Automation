@@ -135,6 +135,9 @@ def test_three_scenarios_end_to_end_with_actual_writer_http_contract(demo):
             post = router.post("/api/resource/Purchase Order").mock(
                 return_value=httpx.Response(200, json={"data": {"name": "PO-DEMO"}})
             )
+            submit = router.post("/api/method/frappe.client.submit").mock(
+                return_value=httpx.Response(200, json={"message": "ok"})
+            )
             stale = apply_decision(
                 demo.vault, writer, action="approve_proposal", proposal_id=original.id, user_id="U1"
             )
@@ -142,7 +145,8 @@ def test_three_scenarios_end_to_end_with_actual_writer_http_contract(demo):
             result = apply_decision(
                 demo.vault, writer, action="approve_proposal", proposal_id=stored.id, user_id="U1"
             )
-            assert "Created draft purchase order PO-DEMO" in result
+            assert "Submitted purchase order PO-DEMO" in result
+            assert submit.call_count == 1
             body = json.loads(post.calls.last.request.content)
             assert body["items"][0]["qty"] == 30
             assert body["schedule_date"] == "2026-11-20"
@@ -152,6 +156,7 @@ def test_three_scenarios_end_to_end_with_actual_writer_http_contract(demo):
                 demo.vault, writer, action="approve_proposal", proposal_id=stored.id, user_id="U1"
             )
             assert post.call_count == 1
+            assert submit.call_count == 1
     finally:
         writer.close()
 
@@ -285,6 +290,9 @@ def test_new_order_for_same_item_after_execution(demo):
         def create_draft(self, order: DraftPurchaseOrder) -> str:
             return "PO-DEMO"
 
+        def submit(self, name: str) -> None:
+            return None
+
     first = demo.prepare()
     apply_decision(
         demo.vault, Writer(), action="approve_proposal", proposal_id=first.proposal_id, user_id="U1"
@@ -354,6 +362,9 @@ def test_stale_click_does_not_remove_the_new_card(demo):
         def create_draft(self, order: DraftPurchaseOrder) -> str:
             assert order.items[0].qty == 30
             return "PO-DEMO"
+
+        def submit(self, name: str) -> None:
+            return None
 
     client = Client()
     body = {

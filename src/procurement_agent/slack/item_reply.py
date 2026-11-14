@@ -38,6 +38,7 @@ def reply_to_text(
     invoices: list[dict[str, Any]] | None = None,
     invoice_items: list[dict[str, Any]] | None = None,
     embedder: Embedder | None = None,
+    submit_limit: float = 5000,
 ) -> ItemReply:
     if not text.strip():
         return _say("Name an item, for example: I need S-66100")
@@ -66,7 +67,7 @@ def reply_to_text(
         if stored.erp_document_name:
             return _say(f"Already created {stored.erp_document_name}. No second purchase order.")
         return _say(f"This item already has a {stored.status} proposal.")
-    text_out, blocks = order_card(decision, stored, notice=filed.notice)
+    text_out, blocks = order_card(decision, stored, notice=filed.notice, submit_limit=submit_limit)
     if filed.posted_anew:
         return ItemReply(text_out, blocks, stored.id, None, None)
     return ItemReply(text_out, blocks, stored.id, stored.slack_channel, stored.slack_ts)

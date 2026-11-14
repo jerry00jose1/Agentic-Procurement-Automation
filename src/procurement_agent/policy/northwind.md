@@ -2,7 +2,7 @@
 
 ## Human approval
 
-A purchase order may be created in ERPNext only after an authorised person approves that exact order. The assistant may prepare a proposal. It may not submit the purchase order, and a changed order needs a new approval.
+An authorised person must approve the exact order before ERPNext changes. A line total of 5,000 EUR or less is submitted by that approval. A line total above 5,000 EUR is saved as a draft until a different authorised person submits it. The assistant prepares the proposal. It does not choose the limit or skip the approval.
 
 ## Recorded prices
 
