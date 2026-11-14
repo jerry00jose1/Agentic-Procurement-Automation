@@ -163,6 +163,18 @@ def test_invented_invoice_name_does_not_replace_the_rows(tmp_path):
     assert "billed quantity 8 against received 10" in reply.text
 
 
+def test_an_unrecognised_question_lists_what_it_can_answer(tmp_path):
+    vault = ApprovalVault(init_database(f"sqlite:///{tmp_path}/clarify.sqlite"), {"U1"})
+    model = Scripted(messages=iter([]))
+    model.replies = [_intent("clarify")]
+    reply = reply_to_text(vault, "Who is the prime minister?", [], [], [], [], model, today=TODAY)
+    assert "I couldn't answer that" in reply.text
+    assert "prepare one purchase" in reply.text
+    assert "purchasing policy" in reply.text
+    assert "do not match" in reply.text
+    assert reply.blocks is None and reply.proposal_id is None
+
+
 def test_matching_invoices_need_no_model_commentary(tmp_path):
     vault = ApprovalVault(init_database(f"sqlite:///{tmp_path}/invoice.sqlite"), {"U1"})
     model = Scripted(messages=iter([]))

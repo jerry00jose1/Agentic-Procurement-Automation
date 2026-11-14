@@ -33,7 +33,13 @@ class BuyerIntent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal[
-        "compare", "purchase", "update", "explain", "clarify", "policy", "invoice"
+        "compare",
+        "purchase",
+        "update",
+        "explain",
+        "clarify",
+        "policy",
+        "invoice",
     ]
     item: str | None = Field(description="Item code or product phrase in this message, else null.")
     supplier: str | None = Field(description="Requested supplier name, else null.")
@@ -78,9 +84,10 @@ Informational questions, hypotheticals, and 'don't order / just compare' are com
 Polite requests such as 'Can you prepare an order' are purchase requests, not questions.
 Requests for top options or to FIND the cheapest are compare even if they mention wanting to buy.
 explain: why a previous recommendation was made. Never modifies an order.
-policy: questions about written purchasing rules, approval, prices, or eligibility.
-invoice: questions about supplier bills, billed quantity, billed price, or mismatches.
-Policy and invoice questions never prepare a purchase.
+policy: what the written purchasing rules say.
+invoice: which supplier bills do not match the order or the receipt.
+Anything that is not a purchase, a supplier comparison, a policy question, or an invoice check
+is clarify. Do not stretch a category to cover it. Policy and invoice never prepare a purchase.
 purchase: an explicit request to prepare/buy/order, even when required details are missing.
 update: corrections ('make that 30 units') or answers to a pending purchase clarification.
 clarify: greetings, unsupported requests, multiple items, ambiguous instructions, or requests
@@ -158,7 +165,7 @@ def run_conversation(
     lookup = {code.casefold(): code for code in codes}
 
     if intent.action == "clarify":
-        return "I can compare suppliers, check a policy or invoice, or prepare one purchase.", None
+        return _CAPABILITIES, None
     if intent.action == "policy":
         if embedder is None:
             return "Policy search is unavailable. No purchase was created.", None
@@ -337,6 +344,13 @@ def run_conversation(
     if recommendation_text:
         detail = recommendation_text + "\n\n" + detail
     return detail, FiledPurchase(current, not bool(current.slack_channel and current.slack_ts))
+
+
+_CAPABILITIES = """I couldn't answer that.
+I can:
+- Compare suppliers for an item, or prepare one purchase
+- Say what the purchasing policy requires
+- Show supplier invoices that do not match the order or the receipt"""
 
 
 def _eligible(facts: list[SellerFact], excluded: list[str]) -> list[SellerFact]:
