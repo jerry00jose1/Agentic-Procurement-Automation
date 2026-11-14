@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import quote
 
 import httpx
 
@@ -55,13 +56,23 @@ class ErpNextDraftWriter:
         return name
 
     def submit(self, name: str) -> None:
+        """Submit the latest saved document. A name-only payload is rejected as stale."""
         self._login()
+        current = self._client.get(
+            f"/api/resource/Purchase Order/{quote(name, safe='')}",
+            headers=self._headers(),
+        )
+        current.raise_for_status()
+        document = current.json().get("data")
+        if not isinstance(document, dict):
+            raise RuntimeError("ERPNext did not return the purchase order.")
         response = self._client.post(
             "/api/method/frappe.client.submit",
             headers=self._headers(),
-            data={"doc": json.dumps({"doctype": "Purchase Order", "name": name})},
+            data={"doc": json.dumps(document, default=str)},
         )
-        response.raise_for_status()
+        if response.is_error:
+            raise RuntimeError(_erp_error(response))
 
     def _login(self) -> None:
         if self._sid or (self._settings.erpnext_api_key and self._settings.erpnext_api_secret):
@@ -92,3 +103,13 @@ class ErpNextDraftWriter:
         elif self._sid:
             headers["Cookie"] = f"sid={self._sid}"
         return headers
+
+
+def _erp_error(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        return f"ERPNext refused the submit ({response.status_code})."
+    exception = str(body.get("exception") or "")
+    detail = exception.split(":", 1)[-1].strip().split("\n", 1)[0]
+    return detail[:240] or f"ERPNext refused the submit ({response.status_code})."

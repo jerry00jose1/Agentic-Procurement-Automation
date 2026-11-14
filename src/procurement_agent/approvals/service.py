@@ -223,8 +223,7 @@ class ApprovalVault:
             if hold_for_second_approver:
                 return _stored(row)
             if submit:
-                writer.submit(document_name)
-                _audit(session, row.id, "submitted", user_id, document_name)
+                return _finish_submit(session, row, user_id, writer)
             row.status = "executed"
             _audit(session, row.id, "executed", user_id, document_name)
             session.commit()
@@ -248,6 +247,8 @@ class ApprovalVault:
             _require_intact(session, row, user_id)
             if row.status == "executed" and row.erp_document_name:
                 return _stored(row)
+            if row.status == "executing" and row.erp_document_name:
+                return _finish_submit(session, row, user_id, writer)
             if row.status != "drafted" or not row.erp_document_name:
                 _audit(session, row.id, "submit_denied", user_id, row.status)
                 session.commit()
@@ -263,13 +264,29 @@ class ApprovalVault:
             row.status = "executing"
             _audit(session, row.id, "submission_started", user_id, name)
             session.commit()
-            writer.submit(name)
-            row.status = "executed"
-            _audit(session, row.id, "submitted", user_id, name)
-            session.commit()
-            return _stored(row)
+            return _finish_submit(session, row, user_id, writer)
         finally:
             session.close()
+
+
+def _finish_submit(
+    session: Session,
+    row: ProposalRow,
+    user_id: str,
+    writer: DraftPurchaseOrderWriter,
+) -> StoredProposal:
+    name = row.erp_document_name or ""
+    try:
+        writer.submit(name)
+    except Exception as exc:
+        row.status = "drafted"
+        _audit(session, row.id, "submit_failed", user_id, str(exc)[:240])
+        session.commit()
+        raise ApprovalError("erp", f"ERPNext did not submit the draft: {exc}") from exc
+    row.status = "executed"
+    _audit(session, row.id, "submitted", user_id, name)
+    session.commit()
+    return _stored(row)
 
 
 def init_database(url: str) -> sessionmaker[Session]:

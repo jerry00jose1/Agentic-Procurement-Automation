@@ -46,7 +46,7 @@ def _approve(
         return f"Already created {before.erp_document_name}. No second purchase order."
     within_limit = _within_limit(before, submit_limit)
     try:
-        if before is not None and before.status == "drafted":
+        if before is not None and before.status in {"drafted", "executing"}:
             stored = vault.submit_draft(
                 proposal_id,
                 user_id,

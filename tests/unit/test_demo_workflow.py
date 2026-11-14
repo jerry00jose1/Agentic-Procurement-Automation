@@ -135,6 +135,18 @@ def test_three_scenarios_end_to_end_with_actual_writer_http_contract(demo):
             post = router.post("/api/resource/Purchase Order").mock(
                 return_value=httpx.Response(200, json={"data": {"name": "PO-DEMO"}})
             )
+            router.get("/api/resource/Purchase Order/PO-DEMO").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "data": {
+                            "doctype": "Purchase Order",
+                            "name": "PO-DEMO",
+                            "modified": "1",
+                        }
+                    },
+                )
+            )
             submit = router.post("/api/method/frappe.client.submit").mock(
                 return_value=httpx.Response(200, json={"message": "ok"})
             )
