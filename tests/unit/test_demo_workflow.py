@@ -11,6 +11,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from sqlalchemy import func, select
+from tests.support import component_research_model
 
 from procurement_agent.agent.conversation import BuyerIntent, Conversation, resolve_date
 from procurement_agent.agent.recommendations import SupplierDecision
@@ -29,6 +30,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class IntentModel(GenericFakeChatModel):
     decisions: list[dict[str, Any]] = []
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> Runnable[Any, AIMessage]:
+        return component_research_model()
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
         assert kwargs == {"method": "json_schema", "strict": True}

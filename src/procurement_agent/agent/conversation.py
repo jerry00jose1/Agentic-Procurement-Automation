@@ -84,8 +84,9 @@ Informational questions, hypotheticals, and 'don't order / just compare' are com
 Polite requests such as 'Can you prepare an order' are purchase requests, not questions.
 Requests for top options or to FIND the cheapest are compare even if they mention wanting to buy.
 explain: why a previous recommendation was made. Never modifies an order.
-policy: what the written purchasing rules say.
-invoice: which supplier bills do not match the order or the receipt.
+policy: what the written purchasing rules say, including questions combining policy with records.
+invoice: bills that do not match the order or receipt, including policy investigations.
+These labels select read-only investigation; the research agent can combine multiple read tools.
 Anything that is not a purchase, a supplier comparison, a policy question, or an invoice check
 is clarify. Do not stretch a category to cover it. Policy and invoice never prepare a purchase.
 purchase: an explicit request to prepare/buy/order, even when required details are missing.
@@ -157,10 +158,11 @@ def run_conversation(
     invoices: list[dict[str, Any]] | None = None,
     invoice_items: list[dict[str, Any]] | None = None,
     embedder: Embedder | None = None,
+    intent: BuyerIntent | None = None,
 ) -> tuple[str, FiledPurchase | None]:
     saved = vault.conversation(conversation_id)
     state = Conversation.model_validate_json(saved) if saved else Conversation()
-    intent = read_intent(model, text, state, today)
+    intent = intent or read_intent(model, text, state, today)
     codes = sorted({str(row["item_code"]) for row in order_items if row.get("item_code")})
     lookup = {code.casefold(): code for code in codes}
 

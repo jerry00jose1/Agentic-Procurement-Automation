@@ -1,7 +1,8 @@
 # Procurement assistant demo
 
 A single-user Slack assistant that compares recorded suppliers, collects purchase details,
-and creates an ERPNext **draft** only after an approval-button click.
+and writes to ERPNext only after an approval-button click. Approval submits orders within
+`ORDER_SUBMIT_LIMIT` (default 5,000); larger orders need a different approver to submit the draft.
 
 ## Run
 
@@ -31,8 +32,9 @@ Use a real item code in your ERP, such as `S-66100` in the Mizan sample.
    estimated line total.
 3. Reply: **Make that 30 units.** The card is updated with a new immutable proposal ID.
    Its previous approval ID is invalidated. Supplier, item and delivery date are preserved.
-4. Click **Create draft PO**. The bot returns the draft name and an ERPNext link. It does not
-   submit the order or send it to a supplier. **Don't order** rejects the proposal.
+4. Click **Place order** for a purchase within the submission limit. For a larger purchase,
+   **Create draft PO** saves a draft and a different approver uses **Submit order**. The bot
+   returns the document name and an ERPNext link. **Don't order** rejects the proposal.
 
 Start another thread with **Order some packaging**. The bot asks which item and how many units,
 as well as any remaining required details. Answer in that thread to complete the request.
@@ -70,6 +72,45 @@ a purchase until the buyer picks one. The model has no ERP write tool. Approval 
 
 Prices are historical estimates, not current quotations. Delivery scores describe recorded
 receipt dates across the supplier's history, not current availability or complete delivery.
-This demo does not implement general database Q&A, stock planning, tax calculations, or final
-purchase-order submission. Monetary conversion and purchase-UOM negotiation are outside this
-single-company demo's scope. Confirm commercial terms in ERPNext before submitting a draft.
+This demo does not implement general database Q&A, stock planning, or tax calculations.
+Monetary conversion and purchase-UOM negotiation are outside this single-company demo's scope.
+Confirm commercial terms before approving an order.
+
+## LangGraph workflow
+
+The Slack entry point now invokes `agent/graph.py`, an explicit LangGraph `StateGraph`.
+An initial structured intent check distinguishes purchase authorization from research.
+It does not choose the research tools: the investigating model chooses a tool, sees its
+result, and can choose another tool before completing its answer.
+
+```mermaid
+flowchart TD
+    A[Interpret message and saved context] --> B{Purchase or research?}
+    B -->|Purchase, revision, clarification| C[Validate and prepare response or proposal]
+    B -->|Research| D[Model chooses read tools]
+    D -->|Tool calls| E[Validate and execute allowed tools]
+    E -->|Within budget| D
+    D -->|Enough evidence| F[Validate cited answer and show source records]
+    E -->|Budget reached| F
+    C --> G[Slack response]
+    F --> G
+```
+
+Research tools are `lookup_sellers`, `compare_suppliers`, `search_policy`, `check_invoices`,
+and `get_purchase_order`. For example, **Check INV-DEMO against its purchase order and our
+invoice-match policy** can trigger several tools in a single request. Substitute a real invoice
+identifier when using Slack. Supplier rankings are still chosen by the model and validated
+against the records; shortlists remain available for follow-up selections.
+
+Research has a maximum of six tool-selection rounds and ten tool executions per message.
+Unknown tools and invalid arguments return errors to the model; it can correct the request
+within that budget. Final policy, invoice and order references are checked against retrieved
+identifiers, and original source sections/exception figures accompany the answer. These checks
+establish source provenance, not a guarantee that every generated inference is correct.
+
+The graph's intermediate messages live for one invocation. Cross-message buyer state and
+proposal revisions remain in PostgreSQL through `ApprovalVault`; graph checkpoints are not
+enabled. An interrupted investigation restarts on retry. Approval-button handlers continue to
+own ERP creation/submission, including the configured submission limit and second-approver rule.
+Orders within that limit are submitted by approval; larger orders remain drafts for a different
+approver.

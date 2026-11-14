@@ -13,6 +13,7 @@ from typing import Any
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from tests.support import component_research_model
 
 from procurement_agent.approvals.models import ProposalRow
 from procurement_agent.approvals.orders import DraftPurchaseOrder
@@ -57,6 +58,9 @@ class Ledger:
 
 class _Scripted(GenericFakeChatModel):
     replies: list[dict[str, Any]] = []
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> Runnable[Any, Any]:
+        return component_research_model()
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
         assert kwargs == {"method": "json_schema", "strict": True}

@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from tests.support import component_research_model
 
 from procurement_agent.approvals.orders import DraftPurchaseOrder, PurchaseOrderLine
 from procurement_agent.approvals.service import ApprovalVault, init_database
@@ -21,6 +22,9 @@ class TokenEmbedder:
 
 class Scripted(GenericFakeChatModel):
     replies: list[dict[str, Any]] = []
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> Runnable[Any, Any]:
+        return component_research_model()
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
         assert kwargs == {"method": "json_schema", "strict": True}
@@ -201,6 +205,6 @@ def test_matching_invoices_need_no_model_commentary(tmp_path):
         ],
         embedder=TokenEmbedder(),
     )
-    assert "match the received quantities" in reply.text
+    assert "No invoice exceptions were found" in reply.text
     assert model.replies == []
     assert reply.proposal_id is None

@@ -9,7 +9,7 @@ from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from procurement_agent.agent.conversation import run_conversation
+from procurement_agent.agent.graph import run_conversation
 from procurement_agent.approvals.service import ApprovalVault
 from procurement_agent.policy.retrieve import Embedder
 from procurement_agent.slack.messages import order_card

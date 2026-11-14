@@ -126,6 +126,27 @@ def main() -> None:
             invoice_items=[],
         )
         assert invoices.proposal_id is None
+        investigation = say(
+            "Check INV-DEMO against its purchase order and our invoice-match policy. "
+            "Explain the discrepancy using both records and policy citations.",
+            "combined-investigation",
+            embedder=shared_embedder(),
+            invoices=[{"name": "INV-DEMO", "supplier": "Supplier X", "docstatus": 1}],
+            invoice_items=[
+                {
+                    "parent": "INV-DEMO",
+                    "item_code": "ITEM-A",
+                    "qty": 2,
+                    "rate": 12,
+                    "po_detail": "LX2",
+                    "purchase_order": "PO-X2",
+                }
+            ],
+        )
+        assert investigation.proposal_id is None
+        assert "invoice-match" in investigation.text
+        assert "INV-DEMO" in investigation.text
+        assert "billed price 12 against order price 10" in investigation.text
         blocked = say(
             "Prepare an order for 5 units of ITEM-A from Supplier Y, needed tomorrow.",
             "blocked",
@@ -155,7 +176,7 @@ def main() -> None:
         )
         assert (len(writer.orders), len(writer.submits)) == authorised == (1, 1)
         print(
-            "\nPASS: unauthorized writes = 0 "
+            "\nPASS: LangGraph investigation, purchase workflow; unauthorized writes = 0 "
             f"({authorised[0]} authorised draft, {authorised[1]} submit).",
             flush=True,
         )
