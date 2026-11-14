@@ -1,10 +1,18 @@
-export PATH := $(HOME)/.local/bin:/Applications/Docker.app/Contents/Resources/bin:$(PATH)
+# macOS /usr/bin/make 3.81 ignores a PATH set in this file, so name the programs directly.
+UV := $(HOME)/.local/bin/uv
+DOCKER := /Applications/Docker.app/Contents/Resources/bin/docker
+ifeq ($(wildcard $(UV)),)
+UV := uv
+endif
+ifeq ($(wildcard $(DOCKER)),)
+DOCKER := docker
+endif
 
 COMPOSE_PROJECT ?= agentic-procurement
 ERPNEXT_COMPOSE := docker/erpnext/docker-compose.yml
 APP_COMPOSE := docker/app/docker-compose.yml
 
-.PHONY: help install lint typecheck test up-erpnext down-erpnext logs-erpnext wait-erpnext probe seed up-app down-app init-db slack demo
+.PHONY: help install lint typecheck test eval up-erpnext down-erpnext logs-erpnext wait-erpnext probe seed up-app down-app init-db slack demo
 
 help:
 	@echo "Agentic Procurement Automation"
@@ -19,32 +27,35 @@ help:
 	@echo "  make down-app        Stop app Postgres"
 	@echo "  make lint            Run ruff"
 	@echo "  make typecheck       Run mypy"
-	@echo "  make test            Run pytest"
+	@echo "  make test            Run pytest, including the write-boundary score"
 	@echo "  make seed            Seed ERPNext from data/mizan"
 	@echo "  make report          Print open orders, late suppliers, invoice mismatches"
 	@echo "  make init-db         Create approval tables in app Postgres"
 	@echo "  make slack           Listen for an item request in Slack"
 
 install:
-	uv sync --all-extras
+	$(UV) sync --all-extras
 
 lint:
-	uv run ruff check src tests scripts
+	$(UV) run ruff check src tests scripts
 
 typecheck:
-	uv run mypy src
+	$(UV) run mypy src
 
 test:
-	uv run pytest
+	$(UV) run pytest
+
+eval:
+	$(UV) run python scripts/eval_demo.py --live
 
 up-erpnext:
-	docker compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) up -d
+	$(DOCKER) compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) up -d
 
 down-erpnext:
-	docker compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) down
+	$(DOCKER) compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) down
 
 logs-erpnext:
-	docker compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) logs -f --tail=200
+	$(DOCKER) compose -p $(COMPOSE_PROJECT) -f $(ERPNEXT_COMPOSE) logs -f --tail=200
 
 wait-erpnext:
 	@echo "Waiting for ERPNext on http://localhost:8080 ..."
@@ -57,28 +68,28 @@ wait-erpnext:
 	echo "ERPNext is responding on http://localhost:8080"
 
 probe:
-	uv run python scripts/probe_erpnext.py
+	$(UV) run python scripts/probe_erpnext.py
 
 up-app:
-	docker compose -p $(COMPOSE_PROJECT)-app -f $(APP_COMPOSE) up -d
+	$(DOCKER) compose -p $(COMPOSE_PROJECT)-app -f $(APP_COMPOSE) up -d
 
 down-app:
-	docker compose -p $(COMPOSE_PROJECT)-app -f $(APP_COMPOSE) down
+	$(DOCKER) compose -p $(COMPOSE_PROJECT)-app -f $(APP_COMPOSE) down
 
 seed:
-	docker cp scripts/seed_erpnext.py agentic-procurement-backend-1:/home/frappe/frappe-bench/apps/frappe/frappe/seed_mizan_loader.py
-	docker cp data/mizan agentic-procurement-backend-1:/tmp/mizan-data
-	docker exec -u frappe -w /home/frappe/frappe-bench agentic-procurement-backend-1 \
+	$(DOCKER) cp scripts/seed_erpnext.py agentic-procurement-backend-1:/home/frappe/frappe-bench/apps/frappe/frappe/seed_mizan_loader.py
+	$(DOCKER) cp data/mizan agentic-procurement-backend-1:/tmp/mizan-data
+	$(DOCKER) exec -u frappe -w /home/frappe/frappe-bench agentic-procurement-backend-1 \
 		bench --site frontend execute frappe.seed_mizan_loader.run --kwargs '{"limit": 0}'
 
 report:
-	uv run python scripts/report_exceptions.py
+	$(UV) run python scripts/report_exceptions.py
 
 init-db:
-	uv run python scripts/init_approval_db.py
+	$(UV) run python scripts/init_approval_db.py
 
 slack:
-	PYTHONUNBUFFERED=1 uv run python scripts/slack_listen.py
+	PYTHONUNBUFFERED=1 $(UV) run python scripts/slack_listen.py
 
 demo:
 	@echo "Primary Slack → ERPNext demo lands after Stage 6."

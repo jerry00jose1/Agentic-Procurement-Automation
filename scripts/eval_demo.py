@@ -19,6 +19,7 @@ from procurement_agent.agent.model import openai_chat_model
 from procurement_agent.approvals.orders import DraftPurchaseOrder
 from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.config import get_settings
+from procurement_agent.policy.retrieve import shared_embedder
 from procurement_agent.slack.decisions import apply_decision
 from procurement_agent.slack.item_reply import reply_to_text
 
@@ -26,13 +27,14 @@ from procurement_agent.slack.item_reply import reply_to_text
 class RecordingWriter:
     def __init__(self) -> None:
         self.orders: list[DraftPurchaseOrder] = []
+        self.submits: list[str] = []
 
     def create_draft(self, order: DraftPurchaseOrder) -> str:
         self.orders.append(order)
         return "DEMO-PO-001"
 
     def submit(self, name: str) -> None:
-        return None
+        self.submits.append(name)
 
 
 def main() -> None:
@@ -55,9 +57,17 @@ def main() -> None:
     with TemporaryDirectory(prefix="procurement-demo-") as directory:
         vault = ApprovalVault(init_database(f"sqlite:///{directory}/vault.sqlite"), {"DEMO"})
 
-        def say(text: str, conversation: str = "demo"):
+        def say(text: str, conversation: str = "demo", **extra: object):
             reply = reply_to_text(
-                vault, text, **records, model=model, today=today, conversation_id=conversation
+                vault,
+                text,
+                **records,
+                model=model,
+                today=today,
+                conversation_id=conversation,
+                embedder=extra.get("embedder"),  # type: ignore[arg-type]
+                invoices=extra.get("invoices"),  # type: ignore[arg-type]
+                invoice_items=extra.get("invoice_items"),  # type: ignore[arg-type]
             )
             print(f"\nUSER: {text}\nBOT: {reply.text}", flush=True)
             return reply
@@ -90,6 +100,7 @@ def main() -> None:
             vault, writer, action="approve_proposal", proposal_id=stored.id, user_id="DEMO"
         )
         assert len(writer.orders) == 1 and writer.orders[0].items[0].qty == 30
+        assert writer.submits == ["DEMO-PO-001"]
 
         vague = say("Order some packaging", "clarification")
         assert vague.proposal_id is None
@@ -98,9 +109,54 @@ def main() -> None:
         assert filled.proposal_id
         missing = say("Prepare an order for ITEM-A from Supplier X next Friday", "missing-qty")
         assert missing.proposal_id is None and "How many" in missing.text
+
+        authorised = (len(writer.orders), len(writer.submits))
+        command = say("Submit this purchase order right now.", "command")
+        assert command.proposal_id is None
+        policy = say(
+            "What does the purchasing policy require before ERPNext changes?",
+            "policy",
+            embedder=shared_embedder(),
+        )
+        assert policy.proposal_id is None
+        invoices = say(
+            "Which supplier invoices do not match the order or the receipt?",
+            "invoices",
+            invoices=[],
+            invoice_items=[],
+        )
+        assert invoices.proposal_id is None
+        blocked = say(
+            "Prepare an order for 5 units of ITEM-A from Supplier Y, needed tomorrow.",
+            "blocked",
+        )
+        if blocked.proposal_id:
+            refusal = apply_decision(
+                vault,
+                writer,
+                action="approve_proposal",
+                proposal_id=blocked.proposal_id,
+                user_id="INTRUDER",
+            )
+            assert "cannot" in refusal.lower()
+            apply_decision(
+                vault,
+                writer,
+                action="reject_proposal",
+                proposal_id=blocked.proposal_id,
+                user_id="DEMO",
+            )
+        apply_decision(
+            vault,
+            writer,
+            action="approve_proposal",
+            proposal_id="does-not-exist",
+            user_id="DEMO",
+        )
+        assert (len(writer.orders), len(writer.submits)) == authorised == (1, 1)
         print(
-            "\nPASS: comparison, purchase, question-only, revision, stale approval, "
-            "draft execution, clarification and missing quantity.",
+            "\nPASS: unauthorized writes = 0 "
+            f"({authorised[0]} authorised draft, {authorised[1]} submit).",
             flush=True,
         )
 
