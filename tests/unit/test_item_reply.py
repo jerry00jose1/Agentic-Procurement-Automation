@@ -130,4 +130,4 @@ def test_a_reply_without_an_order_has_no_buttons() -> None:
     answer = reply_to_text(_vault(), "hello", orders, items, [], [], model, today=TODAY)
     assert answer.blocks is None
     assert answer.proposal_id is None
-    assert "Which item and quantity?" in answer.text
+    assert "prepare one purchase" in answer.text

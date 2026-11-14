@@ -11,6 +11,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from procurement_agent.agent.conversation import run_conversation
 from procurement_agent.approvals.service import ApprovalVault
+from procurement_agent.policy.retrieve import Embedder
 from procurement_agent.slack.messages import order_card
 
 
@@ -34,6 +35,9 @@ def reply_to_text(
     *,
     today: date,
     conversation_id: str = "default",
+    invoices: list[dict[str, Any]] | None = None,
+    invoice_items: list[dict[str, Any]] | None = None,
+    embedder: Embedder | None = None,
 ) -> ItemReply:
     if not text.strip():
         return _say("Name an item, for example: I need S-66100")
@@ -48,6 +52,9 @@ def reply_to_text(
             receipt_items,
             today=today,
             conversation_id=conversation_id,
+            invoices=invoices,
+            invoice_items=invoice_items,
+            embedder=embedder,
         )
     except Exception:
         logging.getLogger(__name__).exception("Buyer request failed")

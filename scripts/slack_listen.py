@@ -20,6 +20,7 @@ from procurement_agent.approvals.service import ApprovalVault, init_database
 from procurement_agent.approvals.writer import ErpNextDraftWriter
 from procurement_agent.config import Settings, get_settings
 from procurement_agent.erp.client import ErpNextReadClient
+from procurement_agent.policy.retrieve import shared_embedder
 from procurement_agent.slack.decisions import apply_decision
 from procurement_agent.slack.item_reply import ItemReply, reply_to_text
 
@@ -101,7 +102,7 @@ def _answer(
     if not text.strip():
         return ItemReply("Name an item, for example: I need S-66100", None, None, None, None)
     try:
-        orders, order_items, receipts, receipt_items = _load(settings)
+        orders, order_items, receipts, receipt_items, invoices, invoice_items = _load(settings)
     except Exception:
         logging.getLogger(__name__).exception("ERP lookup failed")
         return ItemReply("ERPNext is unavailable. Please try again.", None, None, None, None)
@@ -115,12 +116,22 @@ def _answer(
         model,
         today=datetime.now(ZoneInfo(settings.app_timezone)).date(),
         conversation_id=conversation_id,
+        invoices=invoices,
+        invoice_items=invoice_items,
+        embedder=shared_embedder(),
     )
 
 
 def _load(
     settings: Settings,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     with ErpNextReadClient(settings) as erp:
         orders = erp.list_all(
             "Purchase Order",
@@ -139,6 +150,7 @@ def _load(
                 "schedule_date",
                 "description",
                 "warehouse",
+                "received_qty",
             ],
             parent="Purchase Order",
         )
@@ -152,7 +164,17 @@ def _load(
             ["name", "parent", "purchase_order_item"],
             parent="Purchase Receipt",
         )
-    return orders, order_items, receipts, receipt_items
+        invoices = erp.list_all(
+            "Purchase Invoice",
+            ["name", "supplier", "bill_no", "posting_date", "docstatus"],
+            filters=[["docstatus", "=", 1]],
+        )
+        invoice_items = erp.list_all(
+            "Purchase Invoice Item",
+            ["name", "parent", "item_code", "qty", "rate", "purchase_order", "po_detail"],
+            parent="Purchase Invoice",
+        )
+    return orders, order_items, receipts, receipt_items, invoices, invoice_items
 
 
 def conversation_key(channel: str, user: str, thread_ts: str = "commands") -> str:

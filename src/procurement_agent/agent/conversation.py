@@ -16,6 +16,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
+from procurement_agent.agent.evidence import explain_invoices, explain_policy
 from procurement_agent.agent.item_request import FiledPurchase, SellerFact, order_for, seller_facts
 from procurement_agent.agent.recommendations import (
     SupplierDecision,
@@ -23,6 +24,7 @@ from procurement_agent.agent.recommendations import (
     render_recommendations,
 )
 from procurement_agent.approvals.service import ApprovalVault
+from procurement_agent.policy.retrieve import Embedder
 
 
 class BuyerIntent(BaseModel):
@@ -30,7 +32,9 @@ class BuyerIntent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["compare", "purchase", "update", "explain", "clarify"]
+    action: Literal[
+        "compare", "purchase", "update", "explain", "clarify", "policy", "invoice"
+    ]
     item: str | None = Field(description="Item code or product phrase in this message, else null.")
     supplier: str | None = Field(description="Requested supplier name, else null.")
     qty: float | None = Field(description="Explicit requested quantity, else null. Never infer it.")
@@ -74,6 +78,9 @@ Informational questions, hypotheticals, and 'don't order / just compare' are com
 Polite requests such as 'Can you prepare an order' are purchase requests, not questions.
 Requests for top options or to FIND the cheapest are compare even if they mention wanting to buy.
 explain: why a previous recommendation was made. Never modifies an order.
+policy: questions about written purchasing rules, approval, prices, or eligibility.
+invoice: questions about supplier bills, billed quantity, billed price, or mismatches.
+Policy and invoice questions never prepare a purchase.
 purchase: an explicit request to prepare/buy/order, even when required details are missing.
 update: corrections ('make that 30 units') or answers to a pending purchase clarification.
 clarify: greetings, unsupported requests, multiple items, ambiguous instructions, or requests
@@ -140,6 +147,9 @@ def run_conversation(
     *,
     today: date,
     conversation_id: str,
+    invoices: list[dict[str, Any]] | None = None,
+    invoice_items: list[dict[str, Any]] | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[str, FiledPurchase | None]:
     saved = vault.conversation(conversation_id)
     state = Conversation.model_validate_json(saved) if saved else Conversation()
@@ -148,7 +158,16 @@ def run_conversation(
     lookup = {code.casefold(): code for code in codes}
 
     if intent.action == "clarify":
-        return "I can compare suppliers or prepare one purchase. Which item and quantity?", None
+        return "I can compare suppliers, check a policy or invoice, or prepare one purchase.", None
+    if intent.action == "policy":
+        if embedder is None:
+            return "Policy search is unavailable. No purchase was created.", None
+        return explain_policy(model, text, embedder), None
+    if intent.action == "invoice":
+        return (
+            explain_invoices(model, text, invoices, invoice_items, order_items),
+            None,
+        )
 
     if intent.action in {"compare", "explain"}:
         code = lookup.get((intent.item or state.context_item or "").casefold())
